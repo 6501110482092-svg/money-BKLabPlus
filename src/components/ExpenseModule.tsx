@@ -147,7 +147,7 @@ export default function ExpenseModule({
     setOutLabExpenses(validOutLab);
   };
 
-  // บันทึกด้วยคีย์ลัด Alt + S, F8 หรือ Ctrl / Cmd + S (ใช้ capture ป้องกันเบราว์เซอร์ดึงไปใช้ก่อน)
+  // บันทึกด้วยคีย์ลัด F8 (ใช้ capture ป้องกันเบราว์เซอร์ดึงไปใช้ก่อน)
   const saveRef = useRef(handleSaveAll);
   useEffect(() => {
     saveRef.current = handleSaveAll;
@@ -155,17 +155,15 @@ export default function ExpenseModule({
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const isAltS = e.altKey && e.key.toLowerCase() === 's';
-      const isCtrlS = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's';
       const isF8 = e.key === 'F8';
 
-      if (isAltS || isCtrlS || isF8) {
+      if (isF8) {
         e.preventDefault();
         e.stopPropagation();
         saveRef.current();
       }
     };
-    // ใช้ capture = true เพื่อดักจับ Event ก่อนที่จะถูก Browser หรือ Element อื่นขัดขวาง
+    // ใช้ capture = true เพื่อดักจับ Event ก่อนที่จะถูก Browser หรือ Element อื่นขัดวาง
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
@@ -218,15 +216,9 @@ export default function ExpenseModule({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
-            <span className="text-amber-800 font-bold">คีย์ลัดแนะนำ:</span>
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-2xs font-bold text-slate-600">Alt</kbd>
-            <span>+</span>
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-2xs font-bold text-slate-600">S</kbd>
-            <span className="text-slate-400">หรือ</span>
+          <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
+            <span className="text-amber-800 font-bold">คีย์ลัด:</span>
             <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-2xs font-bold text-slate-600">F8</kbd>
-            <span className="text-slate-400">/</span>
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-2xs font-bold text-slate-400">Ctrl+S</kbd>
             <span className="text-amber-800 font-bold">เพื่อบันทึก</span>
           </span>
           <button
