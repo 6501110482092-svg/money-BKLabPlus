@@ -1,0 +1,6 @@
+{
+  "name": "BKLabPlus",
+  "description": "ระบบเพื่อบันทึกรายรับ รายจ่าย และคำนวณเงินสด ตรวจสอบยอดเงินจำเพาะของคลินิกและแล็บ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
