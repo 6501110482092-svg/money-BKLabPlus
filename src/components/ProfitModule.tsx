@@ -51,11 +51,20 @@ export default function ProfitModule({
   // 2) ยอดเงินสดที่ควรจะมี = เงินสด - รายจ่าย - Out-Lab
   const expectedCash = cashIncome - generalExpense - outLabExpense;
 
+  const activeDateRef = useRef<string>('');
+
   // ซิงค์ยอดเงินที่บันทึกไว้ใน record
   useEffect(() => {
-    setCountedCash(record.cashCheck?.countedCash || 0);
-    setNote(record.cashCheck?.note || '');
-    setValidationError(null);
+    const isStateModified = 
+      countedCash !== (record.cashCheck?.countedCash || 0) ||
+      note !== (record.cashCheck?.note || '');
+
+    if (!isStateModified || currentDate !== activeDateRef.current) {
+      setCountedCash(record.cashCheck?.countedCash || 0);
+      setNote(record.cashCheck?.note || '');
+      setValidationError(null);
+      activeDateRef.current = currentDate;
+    }
   }, [record, currentDate]);
 
   // ตรวจสอบ ลอจิก

@@ -1,0 +1,22 @@
+{
+  "collections": {
+    "records": {
+      "schema": {
+        "dateId": "string",
+        "incomeItems": "array",
+        "expenseItems": "array",
+        "outLabItems": "array",
+        "hasOutLab": "boolean",
+        "note": "string",
+        "updatedAt": "string",
+        "updatedBy": "string"
+      }
+    },
+    "labtests": {
+      "schema": {
+        "id": "string",
+        "tests": "array"
+      }
+    }
+  }
+}

@@ -5,9 +5,11 @@
 
 import { DailyRecord, LabTestTemplate } from '../types';
 import { DEFAULT_LAB_TESTS } from '../constants';
+import { saveRecordToFirebase, saveLabTestsToFirebase } from './firebase';
 
 const RECORDS_KEY = 'bklabplus_records';
 const LAB_TESTS_KEY = 'bklabplus_labtests';
+
 
 // ดึง Base URL อัตโนมัติให้เครื่องอื่นชี้มาที่ Cloud Run ได้พอร์ตตรงกันแม้เปิดจาก Vercel หรือสมาร์ทโฟน
 export function getApiUrl(endpoint: string): string {
@@ -101,7 +103,10 @@ export function loadDailyRecord(date: string): DailyRecord {
 export function saveDailyRecord(date: string, record: DailyRecord) {
   const records = loadAllRecords();
   records[date] = record;
+  // Save locally and background sync with backup REST server
   saveAllRecords(records);
+  // Real-time Sync to Firebase Firestore specific to this modified record date!
+  saveRecordToFirebase(date, record);
 }
 
 export function loadLabTests(): LabTestTemplate[] {
@@ -122,6 +127,8 @@ export function saveLabTests(tests: LabTestTemplate[]) {
   try {
     localStorage.setItem(LAB_TESTS_KEY, JSON.stringify(tests));
     uploadLabTestsToServer(tests);
+    // อัดเดตสูตรชุดตรวจไปยัง Firebase Firestore แบบเรียลไทม์
+    saveLabTestsToFirebase(tests);
   } catch (error) {
     console.error('Error saving lab tests', error);
   }

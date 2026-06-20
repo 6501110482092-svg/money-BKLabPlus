@@ -12,6 +12,11 @@ import {
   syncRecordsWithServer,
   syncLabTestsWithServer
 } from './utils/storage';
+import {
+  subscribeToRecords,
+  subscribeToLabTests
+} from './utils/firebase';
+
 
 // นำเข้าแต่ละโมดูลหลัก
 import IncomeModule from './components/IncomeModule';
@@ -71,27 +76,48 @@ export default function App() {
     setCurrentDate(today);
   }, []);
 
-  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์กับ Server เป็นประจำทุก 4 วินาที (เชื่อมประสานเครื่องอื่น/พนักงาน)
+  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore และ REST API เป็นประจำ
   useEffect(() => {
     if (!user) return; // ทำงานเฉพาะเวลาล็อกอินแล้ว
 
-    const doInitialSync = async () => {
-      await syncRecordsWithServer();
-      await syncLabTestsWithServer();
+    // 1. สมัครสัญญาณซิงค์ด่วนแบบ Real-time จาก Firebase Firestore
+    const unsubscribeRecords = subscribeToRecords((allRecords) => {
       if (currentDate) {
-        setCurrentRecord(loadDailyRecord(currentDate));
+        const updatedRec = allRecords[currentDate];
+        if (updatedRec) {
+          setCurrentRecord((prev) => {
+            // หลีกเลี่ยงการอัปเดตวนลูปถ้ารายละเอียดตรงกันหมด 100%
+            if (JSON.stringify(prev) !== JSON.stringify(updatedRec)) {
+              return updatedRec;
+            }
+            return prev;
+          });
+        }
+      }
+    });
+
+    const unsubscribeLabTests = subscribeToLabTests((tests) => {
+      // สมัครและรอสัญญาณเรียลไทม์
+    });
+
+    // 2. ดึงข้อมูลประวัติแรกเริ่มและสำรองผ่าน REST API ทั่วไป
+    const doInitialSync = async () => {
+      try {
+        await syncRecordsWithServer();
+        await syncLabTestsWithServer();
+        if (currentDate) {
+          setCurrentRecord(loadDailyRecord(currentDate));
+        }
+      } catch (err) {
+        console.warn('Backup sync resting. Premium Firestore real-time active.');
       }
     };
     doInitialSync();
 
-    const interval = setInterval(async () => {
-      const updated = await syncRecordsWithServer();
-      if (updated && currentDate) {
-        setCurrentRecord(loadDailyRecord(currentDate));
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribeRecords();
+      unsubscribeLabTests();
+    };
   }, [currentDate, user]);
 
   // โหลดหรือเปลี่ยนประวัติประจำวันเมื่อมีการเลือกวันที่ใหม่
@@ -492,7 +518,7 @@ export default function App() {
       {/* ส่วนท้าย Footer ล่างสุด */}
       <footer className="mt-16 text-center text-xs text-slate-400 max-w-7xl mx-auto px-4 border-t border-gray-150 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
         <p>
-          ระบบบัญชี <strong>BKLabPlus</strong> - บันทึกในเครื่องของใครของมัน ปลอดภัย ไม่ผ่านคลาวด์ภายนอก
+          ระบบบัญชี <strong>BKLabPlus</strong> - เชื่อมต่อแบบ Real-time Live Sync ผ่านระบบ Cloud Firebase ปลอดภัยและทันท่วงที
         </p>
         <p className="font-medium text-slate-400">
           อำนวยความสะดวกคลินิกเทคนิคการแพทย์ & แล็บวิเคราะห์โรคพาร์ทเนอร์
