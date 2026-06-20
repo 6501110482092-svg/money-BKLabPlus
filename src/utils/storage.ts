@@ -9,6 +9,18 @@ import { DEFAULT_LAB_TESTS } from '../constants';
 const RECORDS_KEY = 'bklabplus_records';
 const LAB_TESTS_KEY = 'bklabplus_labtests';
 
+// ดึง Base URL อัตโนมัติให้เครื่องอื่นชี้มาที่ Cloud Run ได้พอร์ตตรงกันแม้เปิดจาก Vercel หรือสมาร์ทโฟน
+export function getApiUrl(endpoint: string): string {
+  const origin = window.location.origin;
+  const isCloudRunOrLocal = origin.includes('asia-east1.run.app') || origin.includes('localhost') || origin.includes('127.0.0.1');
+  if (isCloudRunOrLocal) {
+    return endpoint;
+  }
+  // URL หลักของเซิร์ฟเวอร์สำรองบน Cloud Run 
+  const backendBase = 'https://ais-pre-j4rvcnyqui2upprrutnqz5-749090705145.asia-east1.run.app';
+  return `${backendBase}${endpoint}`;
+}
+
 export function loadAllRecords(): Record<string, DailyRecord> {
   try {
     const data = localStorage.getItem(RECORDS_KEY);
@@ -31,7 +43,7 @@ export function saveAllRecords(records: Record<string, DailyRecord>) {
 
 export async function uploadRecordsToServer(records: Record<string, DailyRecord>) {
   try {
-    await fetch('/api/records', {
+    await fetch(getApiUrl('/api/records'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(records)
@@ -44,7 +56,7 @@ export async function uploadRecordsToServer(records: Record<string, DailyRecord>
 export async function syncRecordsWithServer(): Promise<Record<string, DailyRecord> | null> {
   try {
     const local = loadAllRecords();
-    const res = await fetch('/api/records');
+    const res = await fetch(getApiUrl('/api/records'));
     if (!res.ok) throw new Error('Server offline or network error');
     const serverRecords = await res.json() as Record<string, DailyRecord>;
 
@@ -117,7 +129,7 @@ export function saveLabTests(tests: LabTestTemplate[]) {
 
 export async function uploadLabTestsToServer(tests: LabTestTemplate[]) {
   try {
-    await fetch('/api/labtests', {
+    await fetch(getApiUrl('/api/labtests'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tests)
@@ -130,7 +142,7 @@ export async function uploadLabTestsToServer(tests: LabTestTemplate[]) {
 export async function syncLabTestsWithServer(): Promise<LabTestTemplate[] | null> {
   try {
     const local = loadLabTests();
-    const res = await fetch('/api/labtests');
+    const res = await fetch(getApiUrl('/api/labtests'));
     if (!res.ok) throw new Error('Server offline');
     const serverTests = await res.json() as LabTestTemplate[];
 

@@ -29,13 +29,24 @@ export default function IncomeModule({
   // โฟกัสสำหรับรายการใหม่ล่าสุด
   const cashInputRef = useRef<HTMLInputElement | null>(null);
   const transferInputRef = useRef<HTMLInputElement | null>(null);
+  const activeDateRef = useRef<string>('');
 
-  // โหลดรายการจาก record เมื่อมีการเปลี่ยนวันที่
+  // โหลดรายการจาก record เมื่อมีการเปลี่ยนวันที่ หรือเมื่อบันทึกจากที่อื่นโดยไม่มีการแก้ไขค้างอยู่
   useEffect(() => {
     const cash = record.incomeItems.filter((item) => item.type === 'cash');
     const transfer = record.incomeItems.filter((item) => item.type === 'transfer');
-    setCashItems(cash);
-    setTransferItems(transfer);
+    
+    // ตรวจสอบว่าผู้ใช้กำลังแก้ไขค้างไว้หรือไม่ (เช็คจากความต่างของ state ปัจจุบันกับข้อมูลที่มีอยู่เดิม)
+    const currentAll = [...cashItems, ...transferItems];
+    const incomingAll = [...cash, ...transfer];
+    const isStateModified = JSON.stringify(currentAll) !== JSON.stringify(record.incomeItems);
+
+    // ถ้าไม่มีการแก้ไขค้างไว้เลย หรือเปลี่ยนวันที่แน่นอน ค่อยโหลดใหม่
+    if (!isStateModified || currentDate !== activeDateRef.current) {
+      setCashItems(cash);
+      setTransferItems(transfer);
+      activeDateRef.current = currentDate;
+    }
   }, [record, currentDate]);
 
   // ซิงค์การเปลี่ยนแปลงยอดเงินสดและเงินโอน

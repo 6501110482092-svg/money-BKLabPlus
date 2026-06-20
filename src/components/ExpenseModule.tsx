@@ -37,12 +37,21 @@ export default function ExpenseModule({
 
   const [showSavedToast, setShowSavedToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const activeDateRef = useRef<string>('');
 
   // โหลดรายการ
   useEffect(() => {
-    setGeneralExpenses(record.expenseItems || []);
-    setOutLabExpenses(record.outLabItems || []);
-    setHasOutLab(record.hasOutLab !== false); // Default เป็น true ถ้าไม่มีค่าว่าง
+    const isStateModified = 
+      JSON.stringify(generalExpenses) !== JSON.stringify(record.expenseItems || []) ||
+      JSON.stringify(outLabExpenses) !== JSON.stringify(record.outLabItems || []) ||
+      hasOutLab !== (record.hasOutLab !== false);
+
+    if (!isStateModified || currentDate !== activeDateRef.current) {
+      setGeneralExpenses(record.expenseItems || []);
+      setOutLabExpenses(record.outLabItems || []);
+      setHasOutLab(record.hasOutLab !== false); // Default เป็น true ถ้าไม่มีค่าว่าง
+      activeDateRef.current = currentDate;
+    }
     setTestTemplates(loadLabTests());
   }, [record, currentDate]);
 
