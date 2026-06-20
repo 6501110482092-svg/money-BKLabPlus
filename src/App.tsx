@@ -382,14 +382,14 @@ export default function App() {
               <HeartPulse className="text-white animate-pulse" size={24} />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-xl font-black tracking-tight text-white">BKLabPlus</h1>
-                <span className="px-1.5 py-0.5 bg-blue-500/30 text-[9px] text-blue-400 font-extrabold rounded-full uppercase tracking-widest border border-blue-400/10">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-lg md:text-xl font-black tracking-tight text-white">ระบบบันทึกรายรับ-รายจ่าย คลินิกและแล็บ</h1>
+                <span className="px-1.5 py-0.5 bg-blue-500/30 text-[9px] text-blue-400 font-extrabold rounded-full uppercase tracking-widest border border-blue-400/10 shrink-0">
                   REAL-TIME SYNC
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-semibold tracking-wide uppercase">
-                ระบบจัดการรายรับ-รายจ่าย คลินิกและแล็บเพื่อความแม่นยำบัญชี
+                CLINIC & LAB INCOME-EXPENSE SYSTEM
               </p>
             </div>
           </div>
@@ -518,7 +518,7 @@ export default function App() {
       {/* ส่วนท้าย Footer ล่างสุด */}
       <footer className="mt-16 text-center text-xs text-slate-400 max-w-7xl mx-auto px-4 border-t border-gray-150 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
         <p>
-          ระบบบัญชี <strong>BKLabPlus</strong> - เชื่อมต่อแบบ Real-time Live Sync ผ่านระบบ Cloud Firebase ปลอดภัยและทันท่วงที
+          ระบบ <strong>บันทึกรายรับ-รายจ่าย คลินิกและแล็บ</strong> (Clinic & Lab Income-Expense) - เชื่อมต่อแบบ Real-time Live Sync ผ่านระบบ Cloud Firebase ปลอดภัยและทันท่วงที
         </p>
         <p className="font-medium text-slate-400">
           อำนวยความสะดวกคลินิกเทคนิคการแพทย์ & แล็บวิเคราะห์โรคพาร์ทเนอร์

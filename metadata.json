@@ -1,6 +1,6 @@
 {
-  "name": "BKLabPlus",
-  "description": "ระบบเพื่อบันทึกรายรับ รายจ่าย และคำนวณเงินสด ตรวจสอบยอดเงินจำเพาะของคลินิกและแล็บ",
+  "name": "Clinic & Lab Ledger",
+  "description": "ระบบบันทึกรายรับ-รายจ่าย คลินิกและแล็บ วิเคราะห์แยกส่วนรายได้ ค่าส่งภายนอก (Out-Lab) และรายจ่ายทั่วไป เพื่อคุมเงินสดอย่างมีประสิทธิภาพ",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

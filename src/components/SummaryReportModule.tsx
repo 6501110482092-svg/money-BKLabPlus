@@ -193,11 +193,11 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
 
   // --- ส่งออก Excel ภาพรวมสะสม ---
   const handleExportExcel = () => {
-    const filename = `BKLabPlus_SummaryReport_${startDate}_to_${endDate}.xlsx`;
+    const filename = `ClinicLab_SummaryReport_${startDate}_to_${endDate}.xlsx`;
 
     // 1. หัวตาราง
     const headerRow = [
-      ['สรุปผลรายงานภาพรวมสะสม - BKLabPlus'],
+      ['สรุปผลรายงานภาพรวมบัญชีสะสม คลินิกและแล็บ'],
       [`ช่วงวันที่: ${startDate} ถึง ${endDate}`],
       [],
     ];
@@ -306,10 +306,10 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
           <div>
             <div className="flex items-center gap-2.5">
               <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
-              <span className="text-2xl font-black text-slate-900">BKLabPlus</span>
+              <span className="text-xl md:text-2xl font-black text-slate-900">Clinic Ledger</span>
             </div>
             <p className="text-xs text-gray-400 mt-1 uppercase font-bold tracking-wider">
-              Cumulative Comprehensive Performance & Out-Lab Audit
+              Cumulative Comprehensive Performance & Out-Lab Audit Report
             </p>
           </div>
           <div className="text-right text-xs">

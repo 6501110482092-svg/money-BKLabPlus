@@ -67,10 +67,10 @@ export default function DailyReportModule({
 
   // --- ส่งออกไฟล์ Excel ---
   const handleExportExcel = () => {
-    const filename = `BKLabPlus_DailyReport_${currentDate}.xlsx`;
+    const filename = `ClinicLab_DailyReport_${currentDate}.xlsx`;
 
     // 1. หัวตาราง
-    const headerRow = [['BKLabPlus Daily Report - รายงานสรุปประจำวัน'], [`วันที่: ${currentDate}`], []];
+    const headerRow = [['รายงานประจำวัน - บันทึกรายรับ-รายจ่าย คลินิกและแล็บ'], [`วันที่: ${currentDate}`], []];
 
     // 2. ข้อมูลรายรับ
     const incomeRows = [
@@ -195,12 +195,12 @@ export default function DailyReportModule({
           <div>
             <div className="flex items-center gap-2.5">
               <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
-              <span className="text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                BKLabPlus
+              <span className="text-xl md:text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Daily Ledger
               </span>
             </div>
             <p className="text-xs text-gray-400 mt-1 uppercase font-semibold tracking-wider">
-              Clinical & Lab Accounting Summary Report
+              Clinical & Laboratory Income-Expense Daily Report
             </p>
           </div>
           <div className="mt-4 md:mt-0 text-left md:text-right">
