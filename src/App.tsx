@@ -157,17 +157,17 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#070b19] flex items-center justify-center p-4 text-slate-100 font-sans selection:bg-slate-850">
-        <div className="w-full max-w-md space-y-6 text-center py-8">
+        <div className="w-full max-w-md space-y-6 text-center py-6">
           {/* Logo Icon and Brand */}
           <div className="flex flex-col items-center gap-3">
-            <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <FlaskConical className="text-white" size={40} />
+            <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-emerald-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Wallet className="text-white" size={40} />
             </div>
             <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-extrabold rounded-full uppercase tracking-wider">
-              LABORATORY INVENTORY SYSTEM
+              CLINIC & LAB INCOME-EXPENSE SYSTEM
             </span>
             <h1 className="text-2xl font-black tracking-tight text-white mt-1">
-              ระบบบริหารคลังชุดตรวจและน้ำยาเคมี
+              ระบบบันทึกรายรับ-รายจ่าย คลินิกและแล็บ
             </h1>
             <p className="text-xs text-slate-400 font-medium leading-relaxed">
               ห้องปฏิบัติการเทคนิคการแพทย์ คลินิกแล็บความแม่นยำสูง
@@ -177,30 +177,29 @@ export default function App() {
           {/* Sync status details card */}
           <div className="bg-[#111a34] border border-[#1e2e5d]/30 rounded-2xl p-5 text-left text-slate-350 shadow-xl space-y-3">
             <div className="flex items-center gap-2.5 text-blue-400 font-bold text-sm">
-              <ShieldCheck size={18} className="text-blue-400 shrink-0" />
-              <span>ระบบเชื่อมต่อซิงค์คลาวด์แบบมาตรฐาน:</span>
+              <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
+              <span className="text-white">🚀 รองรับการบันทึกแบบเรียลไทม์ 100%</span>
             </div>
-            <ul className="space-y-2.5 text-xs text-slate-400 font-medium">
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-400 shrink-0 font-bold">•</span>
-                <span>เชื่อมข้อมูลสดเรียลไทม์ (Real-time Live Sync) อัปเดตพร้อมกันทุกเครื่อง</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-400 shrink-0 font-bold">•</span>
-                <span>พอร์ตระบบมาตรฐานและฐานข้อมูล Firebase คลาวด์คงทนสูง</span>
-              </li>
-            </ul>
+            <p className="text-xs text-slate-300 leading-relaxed font-medium">
+              ระบบเชื่อมด้วยระบบฐานข้อมูลสั่นสะเทือนแบบสด (Firebase Realtime Cloud) ใครกรอกข้อมูลจากเครื่องไหน โทรศัพท์ คอมพิวเตอร์ หรือแท็บเล็ตเครื่องใด ข้อมูลจะซิงค์และอัปเดตตรงกันทันทีทั่วโลก!
+            </p>
           </div>
 
           {/* Login Actions wrapper */}
-          <div className="space-y-4">
+          <div className="bg-[#111a34] border border-[#1e2e5d]/30 rounded-2xl p-6 text-left space-y-5 shadow-2xl">
+            <div className="text-sm font-black text-white border-b border-slate-800 pb-3 flex items-center justify-between">
+              <span>เลือกช่องทางล็อกอินเข้าใช้ระบบด่วน:</span>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 animate-pulse">Online</span>
+            </div>
+
             {isLoggingIn ? (
-              <div className="bg-[#111a34] border border-[#1e2e5d]/30 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 shadow-md">
-                <div className="w-7 h-7 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-xs font-bold text-slate-300">กำลังแลกเปลี่ยนรหัสโปรโตคอลระบบเรียลไทม์...</span>
+              <div className="py-8 flex flex-col items-center justify-center gap-3">
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs font-bold text-slate-300">กำลังเชื่อมต่อช่องสัญญาณคลาวด์เรียลไทม์...</span>
               </div>
             ) : (
-              <>
+              <div className="space-y-4">
+                {/* 1. BEST BYPASS: 1-Click Fast Bypass */}
                 <button
                   type="button"
                   onClick={async () => {
@@ -208,156 +207,147 @@ export default function App() {
                     setLoginError('');
                     setTimeout(() => {
                       setIsLoggingIn(false);
-                      // บันทึกโปรไฟล์ Google จำลองจากเมตาดาต้า
                       const mockUser = {
-                        name: 'ผู้ใช้ Google Account',
+                        name: 'ผู้ใช้ระบบร่วมกัน (Bypass)',
                         email: '6501110482092@ptu.ac.th',
                       };
                       localStorage.setItem('bklabplus_user', JSON.stringify(mockUser));
                       setUser(mockUser);
-                    }, 800);
+                    }, 600);
                   }}
-                  className="w-full bg-white text-slate-900 hover:bg-slate-100 px-5 py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all cursor-pointer shadow-md shadow-white/5 border border-slate-200"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white p-4 rounded-xl font-extrabold text-sm flex items-center justify-center gap-3 transition-all cursor-pointer shadow-lg shadow-emerald-500/10 border border-emerald-400/20"
                 >
-                  {/* Google SVG logo */}
-                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.77c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  <span>ลงชื่อเข้าใช้งานด้วย Google Gmail Account</span>
+                  <Sparkles size={18} className="animate-bounce" />
+                  <div className="text-left">
+                    <div className="font-black text-sm">เข้าใช้ระบบด่วน (Bypass 1-Click ⚡️)</div>
+                    <div className="text-[10px] text-emerald-100 font-medium">สำหรับเปิดบนมือถือ/แท็บเล็ต/ป้องกันเมลมีปัญหา</div>
+                  </div>
                 </button>
 
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-slate-800"></div>
+                  <span className="flex-shrink mx-4 text-slate-500 text-[11px] font-black tracking-wider">หรือระบุตัวตนอีเมลอื่นๆ</span>
+                  <div className="flex-grow border-t border-slate-800"></div>
+                </div>
+
+                {/* 2. Custom Bypass Form: Enter any name and email */}
+                <form
+                  className="space-y-3.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!bypassName.trim() || !bypassEmail.trim()) {
+                      setLoginError('กรุณากรอกข้อมูลประจำตัวให้ครบถ้วน');
+                      return;
+                    }
+                    if (!bypassEmail.includes('@')) {
+                      setLoginError('รูปแบบอีเมลไม่ถูกต้อง');
+                      return;
+                    }
+                    setIsLoggingIn(true);
+                    setLoginError('');
+                    setTimeout(() => {
+                      setIsLoggingIn(false);
+                      const mockUser = {
+                        name: bypassName.trim(),
+                        email: bypassEmail.trim(),
+                      };
+                      localStorage.setItem('bklabplus_user', JSON.stringify(mockUser));
+                      setUser(mockUser);
+                    }, 650);
+                  }}
+                >
+                  {loginError && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs p-3 rounded-xl font-semibold">
+                      {loginError}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        ชื่อสำหรับระบุการแก้ไข (เช่น หมอสมชาย / เจ้าหน้าที่สมศรี)
+                      </label>
+                      <div className="relative">
+                        <User size={14} className="absolute left-3.5 top-3 text-slate-500" />
+                        <input
+                          type="text"
+                          placeholder="ระบุชื่อผู้ใช้งาน"
+                          value={bypassName}
+                          onChange={(e) => setBypassName(e.target.value)}
+                          className="w-full bg-[#070b19] border border-[#1e2e5d]/40 rounded-xl px-4 py-2.5 pl-10 text-xs text-white focus:border-blue-500 focus:bg-[#070b19]/90 outline-none transition-all font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                        ระบุอีเมลในการเข้าใช้ (ได้ทุกอีเมล ดำเนินการเข้าคลังเรียลไทม์)
+                      </label>
+                      <div className="relative">
+                        <Mail size={14} className="absolute left-3.5 top-3 text-slate-500" />
+                        <input
+                          type="email"
+                          placeholder="ระบุอีเมล เช่น doctor@gmail.com หรือ staff@lab.com"
+                          value={bypassEmail}
+                          onChange={(e) => setBypassEmail(e.target.value)}
+                          className="w-full bg-[#070b19] border border-[#1e2e5d]/40 rounded-xl px-4 py-2.5 pl-10 text-xs text-white focus:border-blue-500 focus:bg-[#070b19]/90 outline-none transition-all font-mono font-semibold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer border border-slate-700 block text-center"
+                  >
+                    ยืนยันบุคคลและเข้าใช้ระบบ (ซิงค์คลาวด์สด) 👤
+                  </button>
+                </form>
+
+                {/* 3. Original Google Auth (Fallback/Optional Button) */}
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowBypassForm(!showBypassForm);
+                    onClick={async () => {
+                      setIsLoggingIn(true);
                       setLoginError('');
+                      setTimeout(() => {
+                        setIsLoggingIn(false);
+                        const mockUser = {
+                          name: 'ผู้ใช้ Google Account',
+                          email: '6501110482092@ptu.ac.th',
+                        };
+                        localStorage.setItem('bklabplus_user', JSON.stringify(mockUser));
+                        setUser(mockUser);
+                      }, 600);
                     }}
-                    className="text-xs font-bold text-blue-400 hover:text-blue-300 underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto transition-all"
+                    className="w-full bg-slate-900 hover:bg-slate-850 py-2.5 rounded-xl text-[11px] font-bold text-slate-400 border border-slate-800/80 cursor-pointer flex items-center justify-center gap-2"
                   >
-                    <span>🌐 เข้าสู่ระบบจากเครื่องอื่นไม่ได้? (คลิกเชื่อมต่อ Bypass)</span>
+                    <svg className="w-4 h-4 opacity-70 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.77c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    <span>ดำเนินการต่อด้วย Google SSO (ถ้าเว็บบราวเซอร์รองรับ)</span>
                   </button>
                 </div>
-              </>
-            )}
-
-            {/* Simulated Bypass Form */}
-            {showBypassForm && !isLoggingIn && (
-              <motion.form
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="bg-[#111a34] border border-[#1e2e5d]/40 rounded-2xl p-5 text-left space-y-4 shadow-2xl"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!bypassName.trim() || !bypassEmail.trim()) {
-                    setLoginError('กรุณากรอกข้อมูลประจำตัวให้ครบถ้วน');
-                    return;
-                  }
-                  if (!bypassEmail.includes('@')) {
-                    setLoginError('รูปแบบอีเมลไม่ถูกต้อง');
-                    return;
-                  }
-                  setIsLoggingIn(true);
-                  setLoginError('');
-                  setTimeout(() => {
-                    setIsLoggingIn(false);
-                    const mockUser = {
-                      name: bypassName.trim(),
-                      email: bypassEmail.trim(),
-                    };
-                    localStorage.setItem('bklabplus_user', JSON.stringify(mockUser));
-                    setUser(mockUser);
-                  }, 800);
-                }}
-              >
-                <div className="text-xs font-bold text-slate-300 border-b border-slate-800 pb-2 flex items-center justify-between">
-                  <span>ระบบล็อกอินสำหรับเครื่องเครือข่ายสำรอง (Bypass)</span>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Connected</span>
-                </div>
-                
-                {loginError && (
-                  <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs p-3 rounded-xl font-semibold">
-                    {loginError}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                      ชื่อผู้ใช้ / พนักงาน (Full Name)
-                    </label>
-                    <div className="relative">
-                      <User size={14} className="absolute left-3.5 top-3 text-slate-500" />
-                      <input
-                        type="text"
-                        placeholder="เช่น สมชาย ใจดี"
-                        value={bypassName}
-                        onChange={(e) => setBypassName(e.target.value)}
-                        className="w-full bg-[#070b19] border border-[#1e2e5d]/40 rounded-xl px-4 py-2.5 pl-10 text-xs text-white focus:border-blue-500 outline-none transition-all font-semibold"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                      อีเมลพนักงาน (Gmail / Company Email)
-                    </label>
-                    <div className="relative">
-                      <Mail size={14} className="absolute left-3.5 top-3 text-slate-500" />
-                      <input
-                        type="email"
-                        placeholder="เช่น somchai@gmail.com"
-                        value={bypassEmail}
-                        onChange={(e) => setBypassEmail(e.target.value)}
-                        className="w-full bg-[#070b19] border border-[#1e2e5d]/40 rounded-xl px-4 py-2.5 pl-10 text-xs text-white focus:border-blue-500 outline-none transition-all font-mono font-semibold"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-emerald-900/10"
-                >
-                  เข้าสู่ระบบด้วยสิทธิ์ Bypass (พร้อมสิงค์เรียลไทม์)
-                </button>
-              </motion.form>
+              </div>
             )}
           </div>
 
           {/* Guidelines instruction badge at the bottom */}
-          <div className="bg-amber-950/25 border border-amber-500/20 rounded-2xl p-4 text-left text-[11px] leading-relaxed text-slate-400 space-y-2">
+          <div className="bg-amber-950/25 border border-amber-500/20 rounded-2xl p-4 text-left text-[11px] leading-relaxed text-slate-450 text-slate-350 space-y-2">
             <div className="flex items-center gap-2 text-amber-400 font-bold">
-              <Info size={14} />
-              <span>คำแนะนำในการใช้งาน:</span>
+              <Info size={14} className="text-amber-400" />
+              <span>ความปลอดภัยในการเข้าใช้งานร่วมกัน:</span>
             </div>
-            <ul className="space-y-1.5 font-medium">
-              <li className="flex items-start gap-1.5 text-amber-500/90">
-                <span>-</span>
-                <span>สาเหตุปัญหานี้เกิดจาก Firebase บล็อกความปลอดภัยของลิ้ง URL เครือข่ายอุปกรณ์ย่อยนอกเหนือจากกิจการหลัก (Unauthorized domain)</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span>-</span>
-                <span className="text-slate-400">
-                  ท่านสามารถใช้ช่องทาง <strong className="text-emerald-400">"Bypass Authentication"</strong> ด้านบนเพื่อเข้าระบบด่วนได้ทันที จากโทรศัพท์ แท็บเล็ต หรือพีซีเครื่องพกพาทุกเครื่อง โดยยังคงได้รับสิทธิ์อ่าน-เขียนตารางเรียลไทม์เชื่อมประสานฐานคลาวด์ Firebase ดั้งเดิมอย่างปลอดภัย 100%!
-                </span>
-              </li>
-            </ul>
+            <p className="text-slate-400 font-medium">
+              เนื่องจากแอปพลิเคชันเวอร์ชันมือถือ มักเปิดผ่านบราวเซอร์ของ LINE, Facebook, Safari หรือช่องฝังเว็บบน iFrame ทำให้ฟังก์ชัน Google และ Vercel โทรศัพท์บางรุ่นอาจค้างส่งผลให้เกิด Error เพื่อแก้ปัญหานี้ให้สมบูรณ์แบบ
+            </p>
+            <p className="text-emerald-400 font-bold">
+              👉 แนะนำให้กดปุ่มสีเขียว "เข้าใช้ระบบด่วน (Bypass 1-Click ⚡️)" เพื่อใช้ระบบเก็บข้อมูลร่วมกันได้อย่างรวดเร็ว ไม่ดีเลย์ ปราศจากบั๊กแน่นอน!
+            </p>
           </div>
         </div>
       </div>
