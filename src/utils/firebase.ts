@@ -6,6 +6,14 @@ import {
   onSnapshot, 
   collection
 } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged,
+  User 
+} from 'firebase/auth';
 import { DailyRecord, LabTestTemplate } from '../types';
 import appletConfig from '../../firebase-applet-config.json';
 
@@ -14,6 +22,38 @@ const app = initializeApp(appletConfig);
 
 // Initialize Firestore specifying custom Database ID assigned to AI Studio environment
 export const db = getFirestore(app, appletConfig.firestoreDatabaseId);
+
+// Initialize Firebase Authentication
+export const auth = getAuth(app);
+
+// Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
+
+/**
+ * ล็อกอินเข้าใช้งานด้วย Google Gmail (signInWithPopup สำหรับ iframe และอุปกรณ์ทั่วไป)
+ */
+export async function signInWithGoogle(): Promise<User> {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (err) {
+    console.error('Error signing in with Google:', err);
+    throw err;
+  }
+}
+
+/**
+ * ออกจากระบบลบเซสชันคลื่นสัญญาณคลาวด์
+ */
+export async function logoutUser(): Promise<void> {
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.error('Error logging out:', err);
+    throw err;
+  }
+}
+
 
 /**
  * อัปโหลดหรืออัปเดตข้อมูลของวันนั้นๆ ไปยัง Firebase Firestore ในแบบเรียลไทม์
