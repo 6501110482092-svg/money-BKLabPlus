@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { DailyRecord } from '../types';
 import { formatNumber } from '../constants';
 import { loadAllRecords } from '../utils/storage';
+import { subscribeToRecords } from '../utils/firebase';
 import * as XLSX from 'xlsx';
 import {
   BarChart,
@@ -47,20 +48,31 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
     // โหลดประวัติทั้งหมด
     setRecords(loadAllRecords());
 
-    // เซ็ตค่าช่วงเริ่มต้นเป็น 7 วันที่ผ่านมา ถึงวันนี้
-    const today = new Date();
-    const lastWeek = new Date(today);
-    lastWeek.setDate(today.getDate() - 6);
+    // สมัครเชื่อมสัญญาณสดเรียลไทม์จากค่ายระบบคลาวด์ Firebase
+    const unsubscribe = subscribeToRecords((allRecords) => {
+      setRecords(allRecords);
+    });
 
-    const formatDate = (d: Date) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    // เซ็ตค่าช่วงเริ่มต้นเป็น 7 วันที่ผ่านมา ถึงวันนี้ เท่านั้นถ้าไม่ได้เซ็ตค่าไว้ก่อน
+    if (!startDate || !endDate) {
+      const today = new Date();
+      const lastWeek = new Date(today);
+      lastWeek.setDate(today.getDate() - 6);
+
+      const formatDate = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      setStartDate(formatDate(lastWeek));
+      setEndDate(formatDate(today));
+    }
+
+    return () => {
+      unsubscribe();
     };
-
-    setStartDate(formatDate(lastWeek));
-    setEndDate(formatDate(today));
   }, [currentDate]);
 
   // หาลิสต์วันที่ตามระยะห่าง (Range)

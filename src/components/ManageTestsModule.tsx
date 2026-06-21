@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { LabTestTemplate } from '../types';
 import { loadLabTests, saveLabTests } from '../utils/storage';
+import { subscribeToLabTests } from '../utils/firebase';
 import { Plus, Trash2, Save, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -16,6 +17,13 @@ export default function ManageTestsModule() {
 
   useEffect(() => {
     setTests(loadLabTests());
+
+    // ซิงค์ลิสต์ชุดตรวจในคลังแบบเรียลไทม์จากระบบคลาวด์ Firebase
+    const unsubscribe = subscribeToLabTests((updatedTests) => {
+      setTests(updatedTests);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleAddTest = (e: React.FormEvent) => {

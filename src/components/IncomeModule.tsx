@@ -31,21 +31,23 @@ export default function IncomeModule({
   const transferInputRef = useRef<HTMLInputElement | null>(null);
   const activeDateRef = useRef<string>('');
 
+  const lastLoadedRecordRef = useRef<string>('');
+
   // โหลดรายการจาก record เมื่อมีการเปลี่ยนวันที่ หรือเมื่อบันทึกจากที่อื่นโดยไม่มีการแก้ไขค้างอยู่
   useEffect(() => {
-    const cash = record.incomeItems.filter((item) => item.type === 'cash');
-    const transfer = record.incomeItems.filter((item) => item.type === 'transfer');
+    const cash = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'cash') : [];
+    const transfer = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'transfer') : [];
     
-    // ตรวจสอบว่าผู้ใช้กำลังแก้ไขค้างไว้หรือไม่ (เช็คจากความต่างของ state ปัจจุบันกับข้อมูลที่มีอยู่เดิม)
-    const currentAll = [...cashItems, ...transferItems];
-    const incomingAll = [...cash, ...transfer];
-    const isStateModified = JSON.stringify(currentAll) !== JSON.stringify(record.incomeItems);
+    const serializedRecord = JSON.stringify(record?.incomeItems || []);
+    const currentSerialized = JSON.stringify([...cashItems, ...transferItems]);
+    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
 
     // ถ้าไม่มีการแก้ไขค้างไว้เลย หรือเปลี่ยนวันที่แน่นอน ค่อยโหลดใหม่
-    if (!isStateModified || currentDate !== activeDateRef.current) {
+    if (!isUserModified || currentDate !== activeDateRef.current) {
       setCashItems(cash);
       setTransferItems(transfer);
       activeDateRef.current = currentDate;
+      lastLoadedRecordRef.current = serializedRecord;
     }
   }, [record, currentDate]);
 
@@ -134,6 +136,10 @@ export default function IncomeModule({
       ...record,
       incomeItems: [...validCash, ...validTransfer],
     };
+
+    // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
+    lastLoadedRecordRef.current = JSON.stringify([...validCash, ...validTransfer]);
+
     onSaveRecord(updatedRecord);
     setShowSavedToast(true);
     setTimeout(() => setShowSavedToast(false), 2500);

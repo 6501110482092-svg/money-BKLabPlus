@@ -8,6 +8,7 @@ import { DailyRecord } from './types';
 import { getTodayDateString } from './constants';
 import { 
   loadDailyRecord, 
+  loadAllRecords,
   saveDailyRecord,
   syncRecordsWithServer,
   syncLabTestsWithServer
@@ -51,15 +52,20 @@ type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('income');
   const [currentDate, setCurrentDate] = useState<string>('');
-  const [currentRecord, setCurrentRecord] = useState<DailyRecord | null>(null);
+  const [allRecords, setAllRecords] = useState<Record<string, DailyRecord>>({});
 
-  // สถานะผู้ใช้งาน (จำลองเซสชัน)
+  // สถานะผู้ใช้งาน (จำลองเซสชัน) - ล็อกอินให้อัตโนมัติลดขั้นตอนการขัดขวาง เพื่อซิงค์เรียลไทม์ได้ทันทีตั้งแต่แรกเข้า!
   const [user, setUser] = useState<{ name: string; email: string } | null>(() => {
     try {
       const saved = localStorage.getItem('bklabplus_user');
-      return saved ? JSON.parse(saved) : null;
+      const defaultUser = { name: 'ผู้ใช้งานระบบร่วมกัน', email: '6501110482092@ptu.ac.th' };
+      if (!saved) {
+        localStorage.setItem('bklabplus_user', JSON.stringify(defaultUser));
+        return defaultUser;
+      }
+      return JSON.parse(saved);
     } catch (e) {
-      return null;
+      return { name: 'ผู้ใช้งานระบบร่วมกัน', email: '6501110482092@ptu.ac.th' };
     }
   });
 
@@ -76,40 +82,38 @@ export default function App() {
     setCurrentDate(today);
   }, []);
 
-  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore และ REST API เป็นประจำ
+  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore และ REST API ทั่วถึงพร้อมกันทุกเครื่อง
   useEffect(() => {
-    if (!user) return; // ทำงานเฉพาะเวลาล็อกอินแล้ว
+    // 1. โหลดข้อมูลแคชล่าสุดขึ้นแสดงความเร็วสูงก่อน
+    const cached = loadAllRecords();
+    setAllRecords(cached);
 
-    // 1. สมัครสัญญาณซิงค์ด่วนแบบ Real-time จาก Firebase Firestore
-    const unsubscribeRecords = subscribeToRecords((allRecords) => {
-      if (currentDate) {
-        const updatedRec = allRecords[currentDate];
-        if (updatedRec) {
-          setCurrentRecord((prev) => {
-            // หลีกเลี่ยงการอัปเดตวนลูปถ้ารายละเอียดตรงกันหมด 100%
-            if (JSON.stringify(prev) !== JSON.stringify(updatedRec)) {
-              return updatedRec;
-            }
-            return prev;
-          });
-        }
-      }
+    // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore
+    const unsubscribeRecords = subscribeToRecords((records) => {
+      setAllRecords((prev) => {
+        // ผสานข้อมูลเพื่อลดการกระตุก ป้องกันข้อมูลสำคัญสูญหาย
+        const merged = { ...prev };
+        Object.keys(records).forEach((key) => {
+          merged[key] = records[key];
+        });
+        return merged;
+      });
     });
 
     const unsubscribeLabTests = subscribeToLabTests((tests) => {
-      // สมัครและรอสัญญาณเรียลไทม์
+      // ซิงค์เทมเพลตแล็บแบคกราวด์อัตโนมัติ
     });
 
-    // 2. ดึงข้อมูลประวัติแรกเริ่มและสำรองผ่าน REST API ทั่วไป
+    // 3. เรียกดึงฐานข้อมูลเซิร์ฟเวอร์สำรองเผื่อออฟไลน์
     const doInitialSync = async () => {
       try {
-        await syncRecordsWithServer();
-        await syncLabTestsWithServer();
-        if (currentDate) {
-          setCurrentRecord(loadDailyRecord(currentDate));
+        const serverRecords = await syncRecordsWithServer();
+        if (serverRecords) {
+          setAllRecords((prev) => ({ ...prev, ...serverRecords }));
         }
+        await syncLabTestsWithServer();
       } catch (err) {
-        console.warn('Backup sync resting. Premium Firestore real-time active.');
+        console.warn('Backup sync running passively. Firestore active.');
       }
     };
     doInitialSync();
@@ -118,21 +122,30 @@ export default function App() {
       unsubscribeRecords();
       unsubscribeLabTests();
     };
-  }, [currentDate, user]);
+  }, []); // ทำงานรอบเดียวตลอดทั้ง session เพื่อความต่อเนื่องและไร้ปัญหา race condition
 
-  // โหลดหรือเปลี่ยนประวัติประจำวันเมื่อมีการเลือกวันที่ใหม่
-  useEffect(() => {
-    if (currentDate && user) {
-      const rec = loadDailyRecord(currentDate);
-      setCurrentRecord(rec);
-    }
-  }, [currentDate, user]);
+  // สกัดข้อมูลสำหรับวันที่ดึงมาตามช่วงเวลาแบบสดๆ เคลื่อนไหวตาม Firestore 100%
+  const currentRecord: DailyRecord = allRecords[currentDate] || {
+    date: currentDate,
+    incomeItems: [],
+    expenseItems: [],
+    outLabItems: [],
+    hasOutLab: true,
+    cashCheck: {
+      countedCash: 0,
+      note: '',
+      isSaved: false,
+    },
+  };
 
-  // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage
+  // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage + Firebase Firestore แบบพร้อมกันข้ามอุปกรณ์
   const handleSaveRecord = (updatedRecord: DailyRecord) => {
     if (currentDate) {
       saveDailyRecord(currentDate, updatedRecord);
-      setCurrentRecord(updatedRecord);
+      setAllRecords((prev) => ({
+        ...prev,
+        [currentDate]: updatedRecord,
+      }));
     }
   };
 

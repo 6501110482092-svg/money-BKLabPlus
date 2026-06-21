@@ -53,17 +53,28 @@ export default function ProfitModule({
 
   const activeDateRef = useRef<string>('');
 
+  const lastLoadedRecordRef = useRef<string>('');
+
   // ซิงค์ยอดเงินที่บันทึกไว้ใน record
   useEffect(() => {
-    const isStateModified = 
-      countedCash !== (record.cashCheck?.countedCash || 0) ||
-      note !== (record.cashCheck?.note || '');
+    const serializedRecord = JSON.stringify({
+      countedCash: record?.cashCheck?.countedCash || 0,
+      note: record?.cashCheck?.note || ''
+    });
 
-    if (!isStateModified || currentDate !== activeDateRef.current) {
-      setCountedCash(record.cashCheck?.countedCash || 0);
-      setNote(record.cashCheck?.note || '');
+    const currentSerialized = JSON.stringify({
+      countedCash,
+      note
+    });
+
+    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
+
+    if (!isUserModified || currentDate !== activeDateRef.current) {
+      setCountedCash(record?.cashCheck?.countedCash || 0);
+      setNote(record?.cashCheck?.note || '');
       setValidationError(null);
       activeDateRef.current = currentDate;
+      lastLoadedRecordRef.current = serializedRecord;
     }
   }, [record, currentDate]);
 
@@ -88,6 +99,12 @@ export default function ProfitModule({
         isSaved: true,
       },
     };
+
+    // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
+    lastLoadedRecordRef.current = JSON.stringify({
+      countedCash,
+      note
+    });
 
     onSaveRecord(updatedRecord);
     setShowSavedToast(true);

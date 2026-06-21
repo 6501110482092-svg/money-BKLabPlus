@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DailyRecord, ExpenseItem, OutLabItem, LabTestTemplate } from '../types';
 import { formatNumber } from '../constants';
 import { loadLabTests } from '../utils/storage';
+import { subscribeToLabTests } from '../utils/firebase';
 import { Plus, Trash2, Save, Calendar, CheckCircle, Search, AlertCircle, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -39,21 +40,41 @@ export default function ExpenseModule({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeDateRef = useRef<string>('');
 
+  const lastLoadedRecordRef = useRef<string>('');
+
   // โหลดรายการ
   useEffect(() => {
-    const isStateModified = 
-      JSON.stringify(generalExpenses) !== JSON.stringify(record.expenseItems || []) ||
-      JSON.stringify(outLabExpenses) !== JSON.stringify(record.outLabItems || []) ||
-      hasOutLab !== (record.hasOutLab !== false);
+    const serializedRecord = JSON.stringify({
+      expenseItems: record?.expenseItems || [],
+      outLabItems: record?.outLabItems || [],
+      hasOutLab: record?.hasOutLab !== false
+    });
 
-    if (!isStateModified || currentDate !== activeDateRef.current) {
-      setGeneralExpenses(record.expenseItems || []);
-      setOutLabExpenses(record.outLabItems || []);
-      setHasOutLab(record.hasOutLab !== false); // Default เป็น true ถ้าไม่มีค่าว่าง
+    const currentSerialized = JSON.stringify({
+      expenseItems: generalExpenses,
+      outLabItems: outLabExpenses,
+      hasOutLab: hasOutLab
+    });
+
+    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
+
+    if (!isUserModified || currentDate !== activeDateRef.current) {
+      setGeneralExpenses(record?.expenseItems || []);
+      setOutLabExpenses(record?.outLabItems || []);
+      setHasOutLab(record?.hasOutLab !== false); // Default เป็น true ถ้าไม่มีค่าว่าง
       activeDateRef.current = currentDate;
+      lastLoadedRecordRef.current = serializedRecord;
     }
-    setTestTemplates(loadLabTests());
   }, [record, currentDate]);
+
+  // หมวดซิงค์เทมเพลตชุดตรวจในแผนกวิเคราะห์ (Autocomplete Tests) แบบสดๆ
+  useEffect(() => {
+    setTestTemplates(loadLabTests());
+    const unsubscribe = subscribeToLabTests((updatedTests) => {
+      setTestTemplates(updatedTests);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ซ่อน Dropdown เมื่อคลิกนอกขอบเขต
   useEffect(() => {
@@ -147,6 +168,13 @@ export default function ExpenseModule({
       outLabItems: validOutLab,
       hasOutLab: hasOutLab,
     };
+
+    // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
+    lastLoadedRecordRef.current = JSON.stringify({
+      expenseItems: validGeneral,
+      outLabItems: validOutLab,
+      hasOutLab: hasOutLab
+    });
 
     onSaveRecord(updatedRecord);
     setShowSavedToast(true);
