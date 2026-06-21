@@ -38,9 +38,7 @@ export default function ExpenseModule({
 
   const [showSavedToast, setShowSavedToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const activeDateRef = useRef<string>('');
-
-  const lastLoadedRecordRef = useRef<string>('');
+  const prevRecordRef = useRef<string>('');
 
   // โหลดรายการ
   useEffect(() => {
@@ -50,20 +48,11 @@ export default function ExpenseModule({
       hasOutLab: record?.hasOutLab !== false
     });
 
-    const currentSerialized = JSON.stringify({
-      expenseItems: generalExpenses,
-      outLabItems: outLabExpenses,
-      hasOutLab: hasOutLab
-    });
-
-    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
-
-    if (!isUserModified || currentDate !== activeDateRef.current) {
+    if (serializedRecord !== prevRecordRef.current) {
       setGeneralExpenses(record?.expenseItems || []);
       setOutLabExpenses(record?.outLabItems || []);
       setHasOutLab(record?.hasOutLab !== false); // Default เป็น true ถ้าไม่มีค่าว่าง
-      activeDateRef.current = currentDate;
-      lastLoadedRecordRef.current = serializedRecord;
+      prevRecordRef.current = serializedRecord;
     }
   }, [record, currentDate]);
 
@@ -170,7 +159,7 @@ export default function ExpenseModule({
     };
 
     // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
-    lastLoadedRecordRef.current = JSON.stringify({
+    prevRecordRef.current = JSON.stringify({
       expenseItems: validGeneral,
       outLabItems: validOutLab,
       hasOutLab: hasOutLab

@@ -51,9 +51,7 @@ export default function ProfitModule({
   // 2) ยอดเงินสดที่ควรจะมี = เงินสด - รายจ่าย - Out-Lab
   const expectedCash = cashIncome - generalExpense - outLabExpense;
 
-  const activeDateRef = useRef<string>('');
-
-  const lastLoadedRecordRef = useRef<string>('');
+  const prevRecordRef = useRef<string>('');
 
   // ซิงค์ยอดเงินที่บันทึกไว้ใน record
   useEffect(() => {
@@ -62,19 +60,11 @@ export default function ProfitModule({
       note: record?.cashCheck?.note || ''
     });
 
-    const currentSerialized = JSON.stringify({
-      countedCash,
-      note
-    });
-
-    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
-
-    if (!isUserModified || currentDate !== activeDateRef.current) {
+    if (serializedRecord !== prevRecordRef.current) {
       setCountedCash(record?.cashCheck?.countedCash || 0);
       setNote(record?.cashCheck?.note || '');
       setValidationError(null);
-      activeDateRef.current = currentDate;
-      lastLoadedRecordRef.current = serializedRecord;
+      prevRecordRef.current = serializedRecord;
     }
   }, [record, currentDate]);
 
@@ -101,7 +91,7 @@ export default function ProfitModule({
     };
 
     // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
-    lastLoadedRecordRef.current = JSON.stringify({
+    prevRecordRef.current = JSON.stringify({
       countedCash,
       note
     });

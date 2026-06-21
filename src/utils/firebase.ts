@@ -7,25 +7,13 @@ import {
   collection
 } from 'firebase/firestore';
 import { DailyRecord, LabTestTemplate } from '../types';
-
-const metaEnv = (import.meta as any).env || {};
-
-const firebaseConfig = {
-  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "AIzaSyD7LYNFGuyFUHL0J5StLLTq4hXnN8YokxA",
-  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "gen-lang-client-0736833511.firebaseapp.com",
-  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0736833511",
-  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "gen-lang-client-0736833511.firebasestorage.app",
-  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "231494143590",
-  appId: metaEnv.VITE_FIREBASE_APP_ID || "1:231494143590:web:4b452ddef21f3632d827a7"
-};
-
-const databaseId = metaEnv.VITE_FIREBASE_DATABASE_ID || "ai-studio-21202fcf-ba03-493a-a9c9-03f288c62ec2";
+import appletConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(appletConfig);
 
-// Initialize Firestore specifying custom Database ID assigned to AI Studio environment or (default) if overridden
-export const db = getFirestore(app, databaseId);
+// Initialize Firestore specifying custom Database ID assigned to AI Studio environment
+export const db = getFirestore(app, appletConfig.firestoreDatabaseId);
 
 /**
  * อัปโหลดหรืออัปเดตข้อมูลของวันนั้นๆ ไปยัง Firebase Firestore ในแบบเรียลไทม์

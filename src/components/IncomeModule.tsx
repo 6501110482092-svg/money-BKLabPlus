@@ -29,25 +29,18 @@ export default function IncomeModule({
   // โฟกัสสำหรับรายการใหม่ล่าสุด
   const cashInputRef = useRef<HTMLInputElement | null>(null);
   const transferInputRef = useRef<HTMLInputElement | null>(null);
-  const activeDateRef = useRef<string>('');
-
-  const lastLoadedRecordRef = useRef<string>('');
+  const prevRecordRef = useRef<string>('');
 
   // โหลดรายการจาก record เมื่อมีการเปลี่ยนวันที่ หรือเมื่อบันทึกจากที่อื่นโดยไม่มีการแก้ไขค้างอยู่
   useEffect(() => {
-    const cash = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'cash') : [];
-    const transfer = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'transfer') : [];
-    
     const serializedRecord = JSON.stringify(record?.incomeItems || []);
-    const currentSerialized = JSON.stringify([...cashItems, ...transferItems]);
-    const isUserModified = lastLoadedRecordRef.current !== '' && currentSerialized !== lastLoadedRecordRef.current;
 
-    // ถ้าไม่มีการแก้ไขค้างไว้เลย หรือเปลี่ยนวันที่แน่นอน ค่อยโหลดใหม่
-    if (!isUserModified || currentDate !== activeDateRef.current) {
+    if (serializedRecord !== prevRecordRef.current) {
+      const cash = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'cash') : [];
+      const transfer = record?.incomeItems ? record.incomeItems.filter((item) => item.type === 'transfer') : [];
       setCashItems(cash);
       setTransferItems(transfer);
-      activeDateRef.current = currentDate;
-      lastLoadedRecordRef.current = serializedRecord;
+      prevRecordRef.current = serializedRecord;
     }
   }, [record, currentDate]);
 
@@ -138,7 +131,7 @@ export default function IncomeModule({
     };
 
     // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
-    lastLoadedRecordRef.current = JSON.stringify([...validCash, ...validTransfer]);
+    prevRecordRef.current = JSON.stringify([...validCash, ...validTransfer]);
 
     onSaveRecord(updatedRecord);
     setShowSavedToast(true);
