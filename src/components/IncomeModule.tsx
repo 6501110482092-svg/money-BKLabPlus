@@ -103,14 +103,29 @@ export default function IncomeModule({
     setTransferItems(updated);
   };
 
+  const autoSaveItems = (currentCash: IncomeItem[], currentTransfer: IncomeItem[]) => {
+    const validCash = currentCash.filter((item) => item.description.trim() !== '' || item.amount > 0);
+    const validTransfer = currentTransfer.filter((item) => item.description.trim() !== '' || item.amount > 0);
+
+    const updatedRecord: DailyRecord = {
+      ...record,
+      incomeItems: [...validCash, ...validTransfer],
+    };
+
+    prevRecordRef.current = JSON.stringify([...validCash, ...validTransfer]);
+    onSaveRecord(updatedRecord);
+  };
+
   const removeCashItem = (id: string) => {
     const updated = cashItems.filter((item) => item.id !== id);
     setCashItems(updated);
+    autoSaveItems(updated, transferItems);
   };
 
   const removeTransferItem = (id: string) => {
     const updated = transferItems.filter((item) => item.id !== id);
     setTransferItems(updated);
+    autoSaveItems(cashItems, updated);
   };
 
   // รวมเงินสด
@@ -262,6 +277,7 @@ export default function IncomeModule({
                       value={item.description}
                       onChange={(e) => handleCashChange(index, 'description', e.target.value)}
                       onKeyDown={(e) => handleCashKeyDown(e, index, false)}
+                      onBlur={() => autoSaveItems(cashItems, transferItems)}
                     />
                     <div className="relative w-36">
                       <input
@@ -271,6 +287,7 @@ export default function IncomeModule({
                         value={item.amount || ''}
                         onChange={(e) => handleCashChange(index, 'amount', parseFloat(e.target.value) || 0)}
                         onKeyDown={(e) => handleCashKeyDown(e, index, true)}
+                        onBlur={() => autoSaveItems(cashItems, transferItems)}
                       />
                       <span className="absolute right-2 top-1.5 text-xs text-gray-400">฿</span>
                     </div>
@@ -337,6 +354,7 @@ export default function IncomeModule({
                       value={item.description}
                       onChange={(e) => handleTransferChange(index, 'description', e.target.value)}
                       onKeyDown={(e) => handleTransferKeyDown(e, index, false)}
+                      onBlur={() => autoSaveItems(cashItems, transferItems)}
                     />
                     <div className="relative w-36">
                       <input
@@ -346,6 +364,7 @@ export default function IncomeModule({
                         value={item.amount || ''}
                         onChange={(e) => handleTransferChange(index, 'amount', parseFloat(e.target.value) || 0)}
                         onKeyDown={(e) => handleTransferKeyDown(e, index, true)}
+                        onBlur={() => autoSaveItems(cashItems, transferItems)}
                       />
                       <span className="absolute right-2 top-1.5 text-xs text-gray-400">฿</span>
                     </div>

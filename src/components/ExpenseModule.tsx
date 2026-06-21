@@ -98,8 +98,36 @@ export default function ExpenseModule({
     setGeneralExpenses(updated);
   };
 
+  const autoSaveExpenses = (
+    currentGeneral: ExpenseItem[],
+    currentOutLab: OutLabItem[],
+    curHasOutLab: boolean
+  ) => {
+    const validGeneral = currentGeneral.filter((item) => item.description.trim() !== '' || item.amount > 0);
+    const validOutLab = curHasOutLab
+      ? currentOutLab.filter((item) => item.labNumber.trim() !== '' || item.testName.trim() !== '' || item.amount > 0)
+      : [];
+
+    const updatedRecord: DailyRecord = {
+      ...record,
+      expenseItems: validGeneral,
+      outLabItems: validOutLab,
+      hasOutLab: curHasOutLab,
+    };
+
+    prevRecordRef.current = JSON.stringify({
+      expenseItems: validGeneral,
+      outLabItems: validOutLab,
+      hasOutLab: curHasOutLab
+    });
+
+    onSaveRecord(updatedRecord);
+  };
+
   const removeGeneralExpense = (id: string) => {
-    setGeneralExpenses(generalExpenses.filter((item) => item.id !== id));
+    const updated = generalExpenses.filter((item) => item.id !== id);
+    setGeneralExpenses(updated);
+    autoSaveExpenses(updated, outLabExpenses, hasOutLab);
   };
 
   // --- ฟังก์ชันรายจ่ายส่งแล็บนอก (Out-Lab Expenses) ---
@@ -129,13 +157,16 @@ export default function ExpenseModule({
   };
 
   const removeOutLabExpense = (id: string) => {
-    setOutLabExpenses(outLabExpenses.filter((item) => item.id !== id));
+    const updated = outLabExpenses.filter((item) => item.id !== id);
+    setOutLabExpenses(updated);
+    autoSaveExpenses(generalExpenses, updated, hasOutLab);
   };
 
   // ปุ่มเปิดปิดส่งแล็บ
   const handleNoOutLab = () => {
     setHasOutLab(false);
     setOutLabExpenses([]); // ล้างรายการทั้งหมดของวันนี้ทันทีตามเงื่อนไขไม่มีแล็บ
+    autoSaveExpenses(generalExpenses, [], false);
   };
 
   // ยอดคำนวณทั้งหมด
@@ -219,6 +250,7 @@ export default function ExpenseModule({
     };
     setOutLabExpenses(updated);
     setActiveDropdownId(null);
+    autoSaveExpenses(generalExpenses, updated, hasOutLab);
   };
 
   return (
@@ -304,6 +336,7 @@ export default function ExpenseModule({
                       value={item.description}
                       onChange={(e) => handleGeneralChange(index, 'description', e.target.value)}
                       onKeyDown={handleGeneralKeyDown}
+                      onBlur={() => autoSaveExpenses(generalExpenses, outLabExpenses, hasOutLab)}
                     />
                     <div className="relative w-32">
                       <input
@@ -313,6 +346,7 @@ export default function ExpenseModule({
                         value={item.amount || ''}
                         onChange={(e) => handleGeneralChange(index, 'amount', parseFloat(e.target.value) || 0)}
                         onKeyDown={handleGeneralKeyDown}
+                        onBlur={() => autoSaveExpenses(generalExpenses, outLabExpenses, hasOutLab)}
                       />
                       <span className="absolute right-2 top-1.5 text-xs text-gray-400">฿</span>
                     </div>
@@ -423,6 +457,7 @@ export default function ExpenseModule({
                           value={item.labNumber}
                           onChange={(e) => handleOutLabChange(index, 'labNumber', e.target.value)}
                           onKeyDown={handleOutLabKeyDown}
+                          onBlur={() => autoSaveExpenses(generalExpenses, outLabExpenses, hasOutLab)}
                         />
                       </div>
 
@@ -442,6 +477,7 @@ export default function ExpenseModule({
                             setSearchFilter(e.target.value);
                           }}
                           onKeyDown={handleOutLabKeyDown}
+                          onBlur={() => autoSaveExpenses(generalExpenses, outLabExpenses, hasOutLab)}
                         />
 
                         {/* Dropdown Menu */}
@@ -478,6 +514,7 @@ export default function ExpenseModule({
                           value={item.amount || ''}
                           onChange={(e) => handleOutLabChange(index, 'amount', parseFloat(e.target.value) || 0)}
                           onKeyDown={handleOutLabKeyDown}
+                          onBlur={() => autoSaveExpenses(generalExpenses, outLabExpenses, hasOutLab)}
                         />
                         <span className="absolute right-1 top-2 text-[10px] text-gray-400">฿</span>
                       </div>

@@ -101,6 +101,24 @@ export default function ProfitModule({
     setTimeout(() => setShowSavedToast(false), 2500);
   };
 
+  const autoSaveProfitVerify = (cash: number, n: string) => {
+    const updatedRecord: DailyRecord = {
+      ...record,
+      cashCheck: {
+        countedCash: cash,
+        note: n,
+        isSaved: true,
+      },
+    };
+
+    prevRecordRef.current = JSON.stringify({
+      countedCash: cash,
+      note: n
+    });
+
+    onSaveRecord(updatedRecord);
+  };
+
   // บันทึกด้วยคีย์ลัด F8 (ใช้ capture ป้องกันเบราว์เซอร์ดึงไปใช้ก่อน)
   const saveRef = useRef(handleSave);
   useEffect(() => {
@@ -255,6 +273,7 @@ export default function ProfitModule({
                     value={countedCash || ''}
                     id="counted-cash-input"
                     onChange={(e) => setCountedCash(parseFloat(e.target.value) || 0)}
+                    onBlur={() => autoSaveProfitVerify(countedCash, note)}
                     placeholder="ใส่จำนวนเงินสดที่ตรวจนับจริง"
                     className="w-full text-lg font-bold pl-10 pr-8 py-2.5 border border-gray-200 outline-none rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
                   />
@@ -298,6 +317,7 @@ export default function ProfitModule({
                   value={note}
                   id="cash-note-textarea"
                   onChange={(e) => setNote(e.target.value)}
+                  onBlur={() => autoSaveProfitVerify(countedCash, note)}
                   placeholder="เช่น ตังค์ทอนผิด, จ่ายค่าส่งของลืมคีย์, รับมาเกินเป็นทิป ฯลฯ"
                   rows={2}
                   className="w-full p-2.5 border border-gray-200 outline-none rounded-lg text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100 bg-gray-50/50"
