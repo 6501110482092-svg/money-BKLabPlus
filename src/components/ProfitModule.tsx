@@ -68,6 +68,47 @@ export default function ProfitModule({
     }
   }, [record, currentDate]);
 
+  // ระบบ Auto-Save บันทึกส่วนกำไรและยอดตรวจนับเงินสด เรียลไทม์เบื้องหลังเมื่อหยุดปรับปรุง 1.2 วินาที
+  const recordRef = useRef(record);
+  useEffect(() => {
+    recordRef.current = record;
+  }, [record]);
+
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const serializedLocal = JSON.stringify({
+        countedCash,
+        note
+      });
+      const currentRecordLatest = recordRef.current;
+      const serializedProp = JSON.stringify({
+        countedCash: currentRecordLatest?.cashCheck?.countedCash || 0,
+        note: currentRecordLatest?.cashCheck?.note || ''
+      });
+
+      if (serializedLocal !== serializedProp) {
+        const updatedRecord: DailyRecord = {
+          ...currentRecordLatest,
+          cashCheck: {
+            countedCash,
+            note,
+            isSaved: currentRecordLatest?.cashCheck?.isSaved || false,
+          },
+        };
+        prevRecordRef.current = serializedLocal;
+        onSaveRecord(updatedRecord);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [countedCash, note]);
+
   // ตรวจสอบ ลอจิก
   const diff = countedCash - expectedCash;
   const isCorrect = Math.abs(diff) < 0.01;

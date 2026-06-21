@@ -44,6 +44,40 @@ export default function IncomeModule({
     }
   }, [record, currentDate]);
 
+  // ระบบ Auto-Save บันทึกข้อมูลเรียลไทม์เบื้องหลังเมื่อหยุดพิมพ์ 1.2 วินาที (ไม่มีข้อความหมุนกวนใจ)
+  const recordRef = useRef(record);
+  useEffect(() => {
+    recordRef.current = record;
+  }, [record]);
+
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const validCash = cashItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
+      const validTransfer = transferItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
+
+      const serializedLocal = JSON.stringify([...validCash, ...validTransfer]);
+      const currentRecordLatest = recordRef.current;
+      const serializedProp = JSON.stringify(currentRecordLatest?.incomeItems || []);
+
+      if (serializedLocal !== serializedProp) {
+        const updatedRecord: DailyRecord = {
+          ...currentRecordLatest,
+          incomeItems: [...validCash, ...validTransfer],
+        };
+        prevRecordRef.current = serializedLocal;
+        onSaveRecord(updatedRecord);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [cashItems, transferItems]);
+
   // ซิงค์การเปลี่ยนแปลงยอดเงินสดและเงินโอน
   const updateItems = (updatedCash: IncomeItem[], updatedTransfer: IncomeItem[]) => {
     setCashItems(updatedCash);

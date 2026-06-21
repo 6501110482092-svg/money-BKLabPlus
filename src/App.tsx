@@ -115,13 +115,18 @@ export default function App() {
     const cached = loadAllRecords();
     setAllRecords(cached);
 
-    // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore
-    const unsubscribeRecords = subscribeToRecords((records) => {
+    // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore (เสมือนคลื่นคลาวด์กระดิ่งสด)
+    const unsubscribeRecords = subscribeToRecords((firestoreRecords) => {
       setAllRecords((prev) => {
-        // ผสานข้อมูลเพื่อลดการกระตุก ป้องกันข้อมูลสำคัญสูญหาย
         const merged = { ...prev };
-        Object.keys(records).forEach((key) => {
-          merged[key] = records[key];
+        Object.keys(firestoreRecords).forEach((key) => {
+          const prevItem = prev[key];
+          const newItem = firestoreRecords[key];
+          
+          if (!prevItem || !prevItem.updatedAt || !newItem.updatedAt || 
+              new Date(newItem.updatedAt) >= new Date(prevItem.updatedAt)) {
+            merged[key] = newItem;
+          }
         });
         return merged;
       });
@@ -131,12 +136,15 @@ export default function App() {
       // ซิงค์เทมเพลตแล็บแบคกราวด์อัตโนมัติ
     });
 
-    // 3. เรียกดึงฐานข้อมูลเซิร์ฟเวอร์สำรองเผื่อออฟไลน์
+    // 3. เรียกดึงฐานข้อมูลเซิร์ฟเวอร์สำรองเผื่อออฟไลน์ (ผสานเข้าแบบปลอดภัย ไม่ทับถมงานใหม่)
     const doInitialSync = async () => {
       try {
         const serverRecords = await syncRecordsWithServer();
         if (serverRecords) {
-          setAllRecords((prev) => ({ ...prev, ...serverRecords }));
+          setAllRecords((prev) => {
+            // สเปรดเซิร์ฟเวอร์ก่อน แล้วสเปรดสเตตที่มีอยู่ทับ เพื่อให้ข้อมูลล่าสุดในเครื่อง/Firestore ไม่ถูกเขียนทับ
+            return { ...serverRecords, ...prev };
+          });
         }
         await syncLabTestsWithServer();
       } catch (err) {
@@ -168,10 +176,14 @@ export default function App() {
   // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage + Firebase Firestore แบบพร้อมกันข้ามอุปกรณ์
   const handleSaveRecord = (updatedRecord: DailyRecord) => {
     if (currentDate) {
-      saveDailyRecord(currentDate, updatedRecord);
+      const recordWithTimestamp = {
+        ...updatedRecord,
+        updatedAt: new Date().toISOString()
+      };
+      saveDailyRecord(currentDate, recordWithTimestamp);
       setAllRecords((prev) => ({
         ...prev,
-        [currentDate]: updatedRecord,
+        [currentDate]: recordWithTimestamp,
       }));
     }
   };

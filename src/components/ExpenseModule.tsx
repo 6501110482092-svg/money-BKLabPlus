@@ -56,6 +56,52 @@ export default function ExpenseModule({
     }
   }, [record, currentDate]);
 
+  // ระบบ Auto-Save บันทึกข้อมูลรายจ่ายและ Out-Lab เรียลไทม์เบื้องหลังเมื่อหยุดพิมพ์ 1.2 วินาที
+  const recordRef = useRef(record);
+  useEffect(() => {
+    recordRef.current = record;
+  }, [record]);
+
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const validGeneral = generalExpenses.filter((item) => item.description.trim() !== '' || item.amount > 0);
+      const validOutLab = hasOutLab
+        ? outLabExpenses.filter((item) => item.labNumber.trim() !== '' || item.testName.trim() !== '' || item.amount > 0)
+        : [];
+
+      const serializedLocal = JSON.stringify({
+        expenseItems: validGeneral,
+        outLabItems: validOutLab,
+        hasOutLab
+      });
+      const currentRecordLatest = recordRef.current;
+      const serializedProp = JSON.stringify({
+        expenseItems: currentRecordLatest?.expenseItems || [],
+        outLabItems: currentRecordLatest?.outLabItems || [],
+        hasOutLab: currentRecordLatest?.hasOutLab !== false
+      });
+
+      if (serializedLocal !== serializedProp) {
+        const updatedRecord: DailyRecord = {
+          ...currentRecordLatest,
+          expenseItems: validGeneral,
+          outLabItems: validOutLab,
+          hasOutLab,
+        };
+        prevRecordRef.current = serializedLocal;
+        onSaveRecord(updatedRecord);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [generalExpenses, outLabExpenses, hasOutLab]);
+
   // หมวดซิงค์เทมเพลตชุดตรวจในแผนกวิเคราะห์ (Autocomplete Tests) แบบสดๆ
   useEffect(() => {
     setTestTemplates(loadLabTests());

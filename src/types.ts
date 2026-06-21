@@ -36,6 +36,7 @@ export interface DailyRecord {
   outLabItems: OutLabItem[];
   hasOutLab: boolean; // true = มีส่งแล็บ, false = ไม่มีส่งแล็บ (ยอด Out-Lab จะถูกจำลองเป็น 0)
   cashCheck: CashCheckData;
+  updatedAt?: string; // วันที่เวลาอัปเดตล่าสุดสำหรับการซิงค์เรียลไทม์
 }
 
 export interface LabTestTemplate {

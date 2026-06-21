@@ -102,11 +102,15 @@ export function loadDailyRecord(date: string): DailyRecord {
 
 export function saveDailyRecord(date: string, record: DailyRecord) {
   const records = loadAllRecords();
-  records[date] = record;
+  const recordWithTimestamp = {
+    ...record,
+    updatedAt: new Date().toISOString()
+  };
+  records[date] = recordWithTimestamp;
   // Save locally and background sync with backup REST server
   saveAllRecords(records);
   // Real-time Sync to Firebase Firestore specific to this modified record date!
-  saveRecordToFirebase(date, record);
+  saveRecordToFirebase(date, recordWithTimestamp);
 }
 
 export function loadLabTests(): LabTestTemplate[] {
