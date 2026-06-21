@@ -118,17 +118,8 @@ export default function App() {
     // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore (เสมือนคลื่นคลาวด์กระดิ่งสด)
     const unsubscribeRecords = subscribeToRecords((firestoreRecords) => {
       setAllRecords((prev) => {
-        const merged = { ...prev };
-        Object.keys(firestoreRecords).forEach((key) => {
-          const prevItem = prev[key];
-          const newItem = firestoreRecords[key];
-          
-          if (!prevItem || !prevItem.updatedAt || !newItem.updatedAt || 
-              new Date(newItem.updatedAt) >= new Date(prevItem.updatedAt)) {
-            merged[key] = newItem;
-          }
-        });
-        return merged;
+        // อัปเดตข้อมูลทุกเครื่องตรงกันทันที 100% โดยอิงตามระบบฐานข้อมูลคลาวด์เสมือนแอปสต็อกต้นแบบ
+        return { ...prev, ...firestoreRecords };
       });
     });
 
