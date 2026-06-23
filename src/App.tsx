@@ -18,7 +18,8 @@ import {
   subscribeToLabTests,
   auth,
   signInWithGoogle,
-  logoutUser
+  logoutUser,
+  saveRecordToFirebase
 } from './utils/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -109,40 +110,57 @@ export default function App() {
     setCurrentDate(today);
   }, []);
 
-  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore และ REST API ทั่วถึงพร้อมกันทุกเครื่อง
+  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100%
   useEffect(() => {
-    // 1. โหลดข้อมูลแคชล่าสุดขึ้นแสดงความเร็วสูงก่อน
+    // 1. โหลดข้อมูลแคชล่าสุดขึ้นแสดงความเร็วสูงก่อนเพื่อไม่ให้เกิดจังหวะหน่วงหน้าจอ
     const cached = loadAllRecords();
     setAllRecords(cached);
 
     // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore (เสมือนคลื่นคลาวด์กระดิ่งสด)
     const unsubscribeRecords = subscribeToRecords((firestoreRecords) => {
       setAllRecords((prev) => {
-        // อัปเดตข้อมูลทุกเครื่องตรงกันทันที 100% โดยอิงตามระบบฐานข้อมูลคลาวด์เสมือนแอปสต็อกต้นแบบ
-        return { ...prev, ...firestoreRecords };
+        const local = loadAllRecords();
+        const merged = { ...firestoreRecords };
+        let needsMigration = false;
+
+        // ค้นหาและอัปโหลดข้อมูลประวัติที่มีอยู่ในเครื่องเท่านั้นขึ้นระบบคลาวด์โดยอัตโนมัติ
+        // เพื่อป้องกันข้อมูลเก่ายังคงค้างในเครื่อง และซิงค์แบ่งปันให้ทุกเครื่องอื่นเห็นตรงกันทันที 100%
+        Object.keys(local).forEach((date) => {
+          const localRec = local[date];
+          const cloudRec = firestoreRecords[date];
+
+          if (localRec) {
+            if (!cloudRec) {
+              // ยังไม่มีบนคลาวด์ -> อัปโหลดขึ้นคลาวด์ทันที
+              merged[date] = localRec;
+              saveRecordToFirebase(date, localRec);
+              needsMigration = true;
+            } else {
+              // มีทั้งคู่ -> ตรวจสอบ updatedAt ล่าสุด เพื่อเลือกข้อมูลใหม่ที่สุดเสมอ
+              const localTime = localRec.updatedAt ? new Date(localRec.updatedAt).getTime() : 0;
+              const cloudTime = cloudRec.updatedAt ? new Date(cloudRec.updatedAt).getTime() : 0;
+              if (localTime > cloudTime) {
+                merged[date] = localRec;
+                saveRecordToFirebase(date, localRec);
+                needsMigration = true;
+              }
+            }
+          }
+        });
+
+        if (needsMigration) {
+          console.log('Automated sync: Migrated newer local records to Cloud Firestore successfully.');
+        }
+
+        // เซฟสำรองแคชลงใน Local Storage ให้ตรงกับระบบคลาวด์เป๊ะๆ
+        localStorage.setItem('bklabplus_records', JSON.stringify(merged));
+        return merged;
       });
     });
 
     const unsubscribeLabTests = subscribeToLabTests((tests) => {
-      // ซิงค์เทมเพลตแล็บแบคกราวด์อัตโนมัติ
+      // ซิงค์เทมเพลตแล็บแบคกราวด์อัตโนมัติเมื่อมีการเปลี่ยนแปลงบนคลาวด์
     });
-
-    // 3. เรียกดึงฐานข้อมูลเซิร์ฟเวอร์สำรองเผื่อออฟไลน์ (ผสานเข้าแบบปลอดภัย ไม่ทับถมงานใหม่)
-    const doInitialSync = async () => {
-      try {
-        const serverRecords = await syncRecordsWithServer();
-        if (serverRecords) {
-          setAllRecords((prev) => {
-            // สเปรดเซิร์ฟเวอร์ก่อน แล้วสเปรดสเตตที่มีอยู่ทับ เพื่อให้ข้อมูลล่าสุดในเครื่อง/Firestore ไม่ถูกเขียนทับ
-            return { ...serverRecords, ...prev };
-          });
-        }
-        await syncLabTestsWithServer();
-      } catch (err) {
-        console.warn('Backup sync running passively. Firestore active.');
-      }
-    };
-    doInitialSync();
 
     return () => {
       unsubscribeRecords();
