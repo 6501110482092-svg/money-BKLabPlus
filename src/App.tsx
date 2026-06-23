@@ -110,52 +110,17 @@ export default function App() {
     setCurrentDate(today);
   }, []);
 
-  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100%
+  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100% (Single Source of Truth)
   useEffect(() => {
-    // 1. โหลดข้อมูลแคชล่าสุดขึ้นแสดงความเร็วสูงก่อนเพื่อไม่ให้เกิดจังหวะหน่วงหน้าจอ
-    const cached = loadAllRecords();
-    setAllRecords(cached);
+    // กำหนดค่าเริ่มต้นเป็นว่างเปล่าเพื่อรอรับข้อมูลสดจาก Firestore
+    setAllRecords({});
 
-    // 2. สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore (เสมือนคลื่นคลาวด์กระดิ่งสด)
+    // สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore
+    // ฟังก์ชันนี้จะทำงานตลอดเวลาแบบ Live Listener (onSnapshot) เพื่อติดตามความเปลี่ยนแปลงแบบวินาทีต่อวินาที
     const unsubscribeRecords = subscribeToRecords((firestoreRecords) => {
-      setAllRecords((prev) => {
-        const local = loadAllRecords();
-        const merged = { ...firestoreRecords };
-        let needsMigration = false;
-
-        // ค้นหาและอัปโหลดข้อมูลประวัติที่มีอยู่ในเครื่องเท่านั้นขึ้นระบบคลาวด์โดยอัตโนมัติ
-        // เพื่อป้องกันข้อมูลเก่ายังคงค้างในเครื่อง และซิงค์แบ่งปันให้ทุกเครื่องอื่นเห็นตรงกันทันที 100%
-        Object.keys(local).forEach((date) => {
-          const localRec = local[date];
-          const cloudRec = firestoreRecords[date];
-
-          if (localRec) {
-            if (!cloudRec) {
-              // ยังไม่มีบนคลาวด์ -> อัปโหลดขึ้นคลาวด์ทันที
-              merged[date] = localRec;
-              saveRecordToFirebase(date, localRec);
-              needsMigration = true;
-            } else {
-              // มีทั้งคู่ -> ตรวจสอบ updatedAt ล่าสุด เพื่อเลือกข้อมูลใหม่ที่สุดเสมอ
-              const localTime = localRec.updatedAt ? new Date(localRec.updatedAt).getTime() : 0;
-              const cloudTime = cloudRec.updatedAt ? new Date(cloudRec.updatedAt).getTime() : 0;
-              if (localTime > cloudTime) {
-                merged[date] = localRec;
-                saveRecordToFirebase(date, localRec);
-                needsMigration = true;
-              }
-            }
-          }
-        });
-
-        if (needsMigration) {
-          console.log('Automated sync: Migrated newer local records to Cloud Firestore successfully.');
-        }
-
-        // เซฟสำรองแคชลงใน Local Storage ให้ตรงกับระบบคลาวด์เป๊ะๆ
-        localStorage.setItem('bklabplus_records', JSON.stringify(merged));
-        return merged;
-      });
+      // อัปเดตสเตตหลักเพื่อเรนเดอร์ UI อัตโนมัติทันทีโดยไม่ต้องรีเฟรชหน้าจอ (Re-render immediately)
+      // โดยดึงข้อมูลตรงมาจาก Firestore (onSnapshot) เท่านั้น ปราศจากการทำ Local Merge ใดๆ เพื่อความแม่นยำในการซิงค์สด
+      setAllRecords(firestoreRecords);
     });
 
     const unsubscribeLabTests = subscribeToLabTests((tests) => {
@@ -440,8 +405,14 @@ export default function App() {
                 </div>
                 <button
                   onClick={async () => {
-                    if (confirm('ระบบจะออกจากบัญชี Google Account ปัจจุบันใช่หรือไม่?')) {
-                      await logoutUser();
+                    if (confirm('ระบบจะออกจากบัญชีผู้ใช้งานปัจจุบันใช่หรือไม่?')) {
+                      localStorage.removeItem('bklabplus_bypass_user');
+                      setUser(null);
+                      try {
+                        await logoutUser();
+                      } catch (err) {
+                        console.error('Firebase signOut error', err);
+                      }
                     }
                   }}
                   className="p-1 px-2.5 bg-rose-600/90 hover:bg-rose-600 active:scale-95 text-white rounded-lg text-[9px] font-extrabold tracking-wide transition-all cursor-pointer flex items-center gap-1 border border-rose-500/20 shadow-xs ml-1 shrink-0"

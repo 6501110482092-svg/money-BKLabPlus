@@ -45,8 +45,8 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
   const [records, setRecords] = useState<Record<string, DailyRecord>>({});
 
   useEffect(() => {
-    // โหลดประวัติทั้งหมด
-    setRecords(loadAllRecords());
+    // กำหนดค่าเริ่มต้นว่างเปล่าเพื่อให้ใช้คลาวด์ Firestore เป็นแหล่งข้อมูลหนึ่งเดียว 100%
+    setRecords({});
 
     // สมัครเชื่อมสัญญาณสดเรียลไทม์จากค่ายระบบคลาวด์ Firebase
     const unsubscribe = subscribeToRecords((allRecords) => {

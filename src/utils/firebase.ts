@@ -60,13 +60,15 @@ export async function logoutUser(): Promise<void> {
  */
 export async function saveRecordToFirebase(date: string, record: DailyRecord) {
   try {
+    console.log(`[Firestore Write] Attempting to write record for date: ${date}`, record);
     const docRef = doc(db, 'records', date);
     await setDoc(docRef, {
       ...record,
       updatedAt: new Date().toISOString()
     });
+    console.log(`[Firestore Write] SUCCESS: Record for date ${date} written to 'records' collection successfully.`);
   } catch (err) {
-    console.error('Error saving record to Firebase:', err);
+    console.error(`[Firestore Write] ERROR: Failed to write record for date ${date}:`, err);
   }
 }
 
@@ -75,16 +77,18 @@ export async function saveRecordToFirebase(date: string, record: DailyRecord) {
  */
 export async function saveLabTestsToFirebase(tests: LabTestTemplate[]) {
   try {
+    console.log('[Firestore Write] Attempting to write lab tests settings', tests);
     const docRef = doc(db, 'settings', 'labtests');
     await setDoc(docRef, { tests });
+    console.log('[Firestore Write] SUCCESS: Lab tests settings written to "settings/labtests" successfully.');
   } catch (err) {
-    console.error('Error saving lab tests to Firebase:', err);
+    console.error('[Firestore Write] ERROR: Failed to write lab tests settings:', err);
   }
 }
 
 /**
  * ซิงค์แบบเรียลไทม์: สมัครรับข้อมูลจาก Firestore records collection
- * เมื่อมีการเปลี่ยนแปลงจากเครื่องอื่น คืนค่าอัปเดตทันทีและจัดเก็บลง LocalStorage เพื่อความทนทาน
+ * ส่งคืนข้อมูลอัปเดตแบบสดๆ ไปยัง UI สเตทโดยตรงทันที
  */
 export function subscribeToRecords(onUpdate: (records: Record<string, DailyRecord>) => void) {
   const colRef = collection(db, 'records');
@@ -93,8 +97,7 @@ export function subscribeToRecords(onUpdate: (records: Record<string, DailyRecor
     snapshot.forEach((doc) => {
       records[doc.id] = doc.data() as DailyRecord;
     });
-    // สำรองข้อมูลลง LocalStorage เผื่อกรณีขาดการเชื่อมต่อ
-    localStorage.setItem('bklabplus_records', JSON.stringify(records));
+    // เรียก callback ส่งต่อให้ UI สเตท (เช่น setState ของ useState) เพื่อเรนเดอร์ใหม่ทันที
     onUpdate(records);
   }, (err) => {
     console.warn('Firestore records subscription offline or warning:', err);
@@ -110,7 +113,6 @@ export function subscribeToLabTests(onUpdate: (tests: LabTestTemplate[]) => void
     if (snapshot.exists()) {
       const data = snapshot.data();
       if (data && Array.isArray(data.tests)) {
-        localStorage.setItem('bklabplus_labtests', JSON.stringify(data.tests));
         onUpdate(data.tests);
       }
     }
