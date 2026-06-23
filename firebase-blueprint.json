@@ -17,6 +17,15 @@
         "id": "string",
         "tests": "array"
       }
+    },
+    "transactions": {
+      "schema": {
+        "id": "string",
+        "createdAt": "string",
+        "description": "string",
+        "amount": "number",
+        "type": "string"
+      }
     }
   }
 }

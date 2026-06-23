@@ -17,11 +17,32 @@ import {
 import { DailyRecord, LabTestTemplate } from '../types';
 import appletConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App
-const app = initializeApp(appletConfig);
+// ตรวจสอบว่ามีการใส่คีย์ตั้งค่า Firebase ส่วนตัวใน Environment Variables หรือไม่
+const metaEnv = (import.meta as any).env || {};
+const customApiKey = metaEnv.VITE_FIREBASE_API_KEY;
 
-// Initialize Firestore specifying custom Database ID assigned to AI Studio environment
-export const db = getFirestore(app, appletConfig.firestoreDatabaseId);
+const firebaseConfig = customApiKey ? {
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY,
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: metaEnv.VITE_FIREBASE_APP_ID,
+} : appletConfig;
+
+// Initialize Firebase App
+const app = initializeApp(firebaseConfig);
+
+// Initialize Firestore (ใช้ Custom Database ID ของผู้ใช้หากระบุไว้ หรือใช้ค่าจาก appletConfig)
+const databaseId = customApiKey 
+  ? (metaEnv.VITE_FIREBASE_DATABASE_ID || undefined)
+  : (appletConfig as any).firestoreDatabaseId;
+
+export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+
+// Log ข้อมูลการเชื่อมต่อเพื่อช่วยในการตรวจสอบ
+console.log(`[Firebase Connection] Initialized using ${customApiKey ? 'Custom Personal Firebase Project' : 'AI Studio Managed Sandbox'} (Project ID: ${firebaseConfig.projectId || 'N/A'})`);
+
 
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
