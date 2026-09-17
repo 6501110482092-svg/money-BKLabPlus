@@ -31,12 +31,23 @@ export interface CashCheckData {
 
 export interface DailyRecord {
   date: string; // รูปแบบ YYYY-MM-DD
+  businessId?: string; // รหัสธุรกิจ/บริษัท เพื่อแยกบันทึกไม่ให้ปนกัน
   incomeItems: IncomeItem[];
   expenseItems: ExpenseItem[];
   outLabItems: OutLabItem[];
   hasOutLab: boolean; // true = มีส่งแล็บ, false = ไม่มีส่งแล็บ (ยอด Out-Lab จะถูกจำลองเป็น 0)
   cashCheck: CashCheckData;
   updatedAt?: string; // วันที่เวลาอัปเดตล่าสุดสำหรับการซิงค์เรียลไทม์
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  color?: string; // 'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'indigo' | 'cyan'
+  isDefault?: boolean;
+  createdAt?: string;
 }
 
 export interface LabTestTemplate {

@@ -3,13 +3,61 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DailyRecord, LabTestTemplate } from '../types';
-import { DEFAULT_LAB_TESTS } from '../constants';
-import { saveRecordToFirebase, saveLabTestsToFirebase } from './firebase';
+import { DailyRecord, LabTestTemplate, Business } from '../types';
+import { DEFAULT_LAB_TESTS, DEFAULT_BUSINESSES } from '../constants';
+import { saveRecordToFirebase, saveLabTestsToFirebase, saveBusinessesToFirebase } from './firebase';
 
 const RECORDS_KEY = 'bklabplus_records';
 const LAB_TESTS_KEY = 'bklabplus_labtests';
+const BUSINESSES_KEY = 'bklabplus_businesses';
+const ACTIVE_BUSINESS_KEY = 'bklabplus_active_business';
 
+// จัดการรายชื่อบริษัท / ธุรกิจ
+export function loadBusinesses(): Business[] {
+  try {
+    const data = localStorage.getItem(BUSINESSES_KEY);
+    if (!data) {
+      localStorage.setItem(BUSINESSES_KEY, JSON.stringify(DEFAULT_BUSINESSES));
+      return DEFAULT_BUSINESSES;
+    }
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return DEFAULT_BUSINESSES;
+  } catch (error) {
+    console.error('Error loading businesses', error);
+    return DEFAULT_BUSINESSES;
+  }
+}
+
+export function saveBusinesses(businesses: Business[]) {
+  try {
+    localStorage.setItem(BUSINESSES_KEY, JSON.stringify(businesses));
+    saveBusinessesToFirebase(businesses);
+  } catch (error) {
+    console.error('Error saving businesses', error);
+  }
+}
+
+export function loadActiveBusinessId(): string {
+  try {
+    const saved = localStorage.getItem(ACTIVE_BUSINESS_KEY);
+    if (saved) return saved;
+    const businesses = loadBusinesses();
+    return businesses[0]?.id || 'clinic-main';
+  } catch (error) {
+    return 'clinic-main';
+  }
+}
+
+export function saveActiveBusinessId(id: string) {
+  try {
+    localStorage.setItem(ACTIVE_BUSINESS_KEY, id);
+  } catch (error) {
+    console.error('Error saving active business id', error);
+  }
+}
 
 // ดึง Base URL อัตโนมัติให้เครื่องอื่นชี้มาที่ Cloud Run ได้พอร์ตตรงกันแม้เปิดจาก Vercel หรือสมาร์ทโฟน
 export function getApiUrl(endpoint: string): string {
@@ -23,9 +71,10 @@ export function getApiUrl(endpoint: string): string {
   return `${backendBase}${endpoint}`;
 }
 
-export function loadAllRecords(): Record<string, DailyRecord> {
+export function loadAllRecords(businessId?: string): Record<string, DailyRecord> {
   try {
-    const data = localStorage.getItem(RECORDS_KEY);
+    const key = businessId ? `${RECORDS_KEY}_${businessId}` : RECORDS_KEY;
+    const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : {};
   } catch (error) {
     console.error('Error loading records', error);
@@ -33,9 +82,10 @@ export function loadAllRecords(): Record<string, DailyRecord> {
   }
 }
 
-export function saveAllRecords(records: Record<string, DailyRecord>) {
+export function saveAllRecords(records: Record<string, DailyRecord>, businessId?: string) {
   try {
-    localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+    const key = businessId ? `${RECORDS_KEY}_${businessId}` : RECORDS_KEY;
+    localStorage.setItem(key, JSON.stringify(records));
   } catch (error) {
     console.error('Error saving records', error);
   }
@@ -50,14 +100,15 @@ export async function syncRecordsWithServer(): Promise<Record<string, DailyRecor
   return null;
 }
 
-export function loadDailyRecord(date: string): DailyRecord {
-  const records = loadAllRecords();
+export function loadDailyRecord(date: string, businessId?: string): DailyRecord {
+  const records = loadAllRecords(businessId);
   if (records[date]) {
     return records[date];
   }
   // ถ้ายังไม่มี ให้สร้างค่าเริ่มต้นของวันนั้นๆ
   return {
     date,
+    businessId: businessId || 'clinic-main',
     incomeItems: [],
     expenseItems: [],
     outLabItems: [],
@@ -70,17 +121,20 @@ export function loadDailyRecord(date: string): DailyRecord {
   };
 }
 
-export function saveDailyRecord(date: string, record: DailyRecord) {
-  const records = loadAllRecords();
-  const recordWithTimestamp = {
+export function saveDailyRecord(date: string, record: DailyRecord, businessId?: string) {
+  const targetBizId = businessId || record.businessId || 'clinic-main';
+  const records = loadAllRecords(targetBizId);
+  const recordWithTimestamp: DailyRecord = {
     ...record,
+    businessId: targetBizId,
+    date,
     updatedAt: new Date().toISOString()
   };
   records[date] = recordWithTimestamp;
-  // Save locally and background sync with backup REST server
-  saveAllRecords(records);
-  // Real-time Sync to Firebase Firestore specific to this modified record date!
-  saveRecordToFirebase(date, recordWithTimestamp);
+  // Save locally per business
+  saveAllRecords(records, targetBizId);
+  // Real-time Sync to Firebase Firestore specific to this modified record date and business!
+  saveRecordToFirebase(date, recordWithTimestamp, targetBizId);
 }
 
 export function loadLabTests(): LabTestTemplate[] {

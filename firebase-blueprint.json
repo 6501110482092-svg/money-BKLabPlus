@@ -3,6 +3,7 @@
     "records": {
       "schema": {
         "dateId": "string",
+        "businessId": "string",
         "incomeItems": "array",
         "expenseItems": "array",
         "outLabItems": "array",
@@ -10,6 +11,12 @@
         "note": "string",
         "updatedAt": "string",
         "updatedBy": "string"
+      }
+    },
+    "businesses": {
+      "schema": {
+        "id": "string",
+        "list": "array"
       }
     },
     "labtests": {

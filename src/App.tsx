@@ -4,18 +4,23 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DailyRecord } from './types';
-import { getTodayDateString } from './constants';
+import { DailyRecord, Business } from './types';
+import { getTodayDateString, getBusinessColorClasses } from './constants';
 import { 
   loadDailyRecord, 
   loadAllRecords,
   saveDailyRecord,
   syncRecordsWithServer,
-  syncLabTestsWithServer
+  syncLabTestsWithServer,
+  loadBusinesses,
+  saveBusinesses,
+  loadActiveBusinessId,
+  saveActiveBusinessId
 } from './utils/storage';
 import {
   subscribeToRecords,
   subscribeToLabTests,
+  subscribeToBusinesses,
   auth,
   signInWithGoogle,
   logoutUser,
@@ -49,6 +54,10 @@ import {
   User,
   Mail,
   Lock,
+  Building2,
+  ChevronDown,
+  Check,
+  Store,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -57,7 +66,15 @@ type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('income');
   const [currentDate, setCurrentDate] = useState<string>('');
-  const [allRecords, setAllRecords] = useState<Record<string, DailyRecord>>({});
+  
+  // รัฐระบบแยกบริษัท/ธุรกิจ (Multi-Business System)
+  const [businesses, setBusinesses] = useState<Business[]>(() => loadBusinesses());
+  const [activeBusinessId, setActiveBusinessId] = useState<string>(() => loadActiveBusinessId());
+  const [isBizDropdownOpen, setIsBizDropdownOpen] = useState<boolean>(false);
+
+  // ข้อมูลเรคคอร์ดทั้งหมด แยกตามบริษัท: { [businessId]: { [date]: DailyRecord } }
+  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>({});
+
   const [user, setUser] = useState<{ uid: string; name: string; email: string; photoURL: string } | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string>('');
@@ -66,6 +83,20 @@ export default function App() {
   const [showBypassForm, setShowBypassForm] = useState<boolean>(false);
   const [bypassEmail, setBypassEmail] = useState<string>('');
   const [bypassName, setBypassName] = useState<string>('');
+
+  // ข้อมูลบริษัทปัจจุบันที่กำลังทำงาน
+  const activeBusiness = businesses.find((b) => b.id === activeBusinessId) || businesses[0] || {
+    id: 'clinic-main',
+    name: 'คลินิกเวชกรรม / แผนกแพทย์',
+    code: 'CLN',
+    color: 'emerald',
+  };
+
+  const handleSelectBusiness = (id: string) => {
+    setActiveBusinessId(id);
+    saveActiveBusinessId(id);
+    setIsBizDropdownOpen(false);
+  };
 
   // ติดตามการเปลี่ยนแปลงสถานะล็อกอิน Google Gmail แบบเรียลไทม์
   useEffect(() => {
@@ -110,17 +141,19 @@ export default function App() {
     setCurrentDate(today);
   }, []);
 
-  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100% (Single Source of Truth)
+  // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100%
   useEffect(() => {
-    // กำหนดค่าเริ่มต้นเป็นว่างเปล่าเพื่อรอรับข้อมูลสดจาก Firestore
-    setAllRecords({});
-
     // สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore
-    // ฟังก์ชันนี้จะทำงานตลอดเวลาแบบ Live Listener (onSnapshot) เพื่อติดตามความเปลี่ยนแปลงแบบวินาทีต่อวินาที
-    const unsubscribeRecords = subscribeToRecords((firestoreRecords) => {
-      // อัปเดตสเตตหลักเพื่อเรนเดอร์ UI อัตโนมัติทันทีโดยไม่ต้องรีเฟรชหน้าจอ (Re-render immediately)
-      // โดยดึงข้อมูลตรงมาจาก Firestore (onSnapshot) เท่านั้น ปราศจากการทำ Local Merge ใดๆ เพื่อความแม่นยำในการซิงค์สด
-      setAllRecords(firestoreRecords);
+    // ส่งข้อมูลแยกตามบริษัท เพื่อให้แต่ละบริษัทไม่ปนกัน
+    const unsubscribeRecords = subscribeToRecords((byBiz) => {
+      setRecordsByBusiness(byBiz);
+    });
+
+    // ซิงค์รายชื่อบริษัทสดจาก Firebase Cloud
+    const unsubscribeBusinesses = subscribeToBusinesses((updatedList) => {
+      if (updatedList && updatedList.length > 0) {
+        setBusinesses(updatedList);
+      }
     });
 
     const unsubscribeLabTests = subscribeToLabTests((tests) => {
@@ -129,35 +162,31 @@ export default function App() {
 
     return () => {
       unsubscribeRecords();
+      unsubscribeBusinesses();
       unsubscribeLabTests();
     };
-  }, []); // ทำงานรอบเดียวตลอดทั้ง session เพื่อความต่อเนื่องและไร้ปัญหา race condition
+  }, []);
 
-  // สกัดข้อมูลสำหรับวันที่ดึงมาตามช่วงเวลาแบบสดๆ เคลื่อนไหวตาม Firestore 100%
-  const currentRecord: DailyRecord = allRecords[currentDate] || {
-    date: currentDate,
-    incomeItems: [],
-    expenseItems: [],
-    outLabItems: [],
-    hasOutLab: true,
-    cashCheck: {
-      countedCash: 0,
-      note: '',
-      isSaved: false,
-    },
-  };
+  // สกัดข้อมูลสำหรับวันที่ของบริษัทที่เลือกในปัจจุบัน (Single Source of Truth)
+  const currentBizRecords = recordsByBusiness[activeBusinessId] || {};
+  const currentRecord: DailyRecord = currentBizRecords[currentDate] || loadDailyRecord(currentDate, activeBusinessId);
 
-  // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage + Firebase Firestore แบบพร้อมกันข้ามอุปกรณ์
+  // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage + Firebase Firestore โดยระบุ businessId ชัดเจน
   const handleSaveRecord = (updatedRecord: DailyRecord) => {
     if (currentDate) {
-      const recordWithTimestamp = {
+      const recordWithMeta: DailyRecord = {
         ...updatedRecord,
-        updatedAt: new Date().toISOString()
+        businessId: activeBusinessId,
+        date: currentDate,
+        updatedAt: new Date().toISOString(),
       };
-      saveDailyRecord(currentDate, recordWithTimestamp);
-      setAllRecords((prev) => ({
+      saveDailyRecord(currentDate, recordWithMeta, activeBusinessId);
+      setRecordsByBusiness((prev) => ({
         ...prev,
-        [currentDate]: recordWithTimestamp,
+        [activeBusinessId]: {
+          ...(prev[activeBusinessId] || {}),
+          [currentDate]: recordWithMeta,
+        },
       }));
     }
   };
@@ -388,7 +417,108 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 justify-center">
+          <div className="flex flex-wrap items-center gap-2.5 justify-center">
+            {/* 0. ตัวเลือกบริษัท/ธุรกิจ (วางไว้ตรงหน้า user ตามคำสั่งของผู้ใช้) */}
+            <div className="relative">
+              <button
+                type="button"
+                id="business-selector-header-btn"
+                onClick={() => setIsBizDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-2 bg-slate-800/90 hover:bg-slate-750 active:scale-98 px-3 py-1.5 rounded-xl border border-slate-700/90 transition-all cursor-pointer shadow-xs group"
+                title="คลิกเพื่อสลับบริษัท/ธุรกิจ"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full ${getBusinessColorClasses(activeBusiness.color).dot}`} />
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-700/90 text-blue-300 uppercase tracking-wider font-mono border border-slate-600">
+                    {activeBusiness.code || 'BIZ'}
+                  </span>
+                </div>
+                <div className="flex flex-col text-left max-w-[130px] sm:max-w-[180px] truncate">
+                  <span className="text-[8px] font-bold text-slate-400 block leading-none">สมุดบัญชีธุรกิจ:</span>
+                  <span className="text-xs font-black text-white block truncate leading-tight mt-0.5">
+                    {activeBusiness.name}
+                  </span>
+                </div>
+                <ChevronDown size={14} className={`text-slate-400 group-hover:text-white transition-transform ${isBizDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* ดรอปดาวน์เลือกบริษัท */}
+              {isBizDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsBizDropdownOpen(false)}
+                  />
+                  <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-1">
+                    <div className="px-3 py-2 border-b border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-white flex items-center gap-1.5">
+                          <Building2 size={13} className="text-blue-400" />
+                          <span>เลือกสมุดบัญชีธุรกิจ</span>
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                          {businesses.length} บริษัท
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        ระบบจะแสดงและบันทึกข้อมูลแยกตามธุรกิจ 100%
+                      </p>
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto space-y-1 py-1">
+                      {businesses.map((biz) => {
+                        const isSelected = biz.id === activeBusinessId;
+                        const colorCls = getBusinessColorClasses(biz.color);
+                        return (
+                          <button
+                            key={biz.id}
+                            type="button"
+                            onClick={() => handleSelectBusiness(biz.id)}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white font-bold'
+                                : 'hover:bg-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${colorCls.dot}`} />
+                              <div className="truncate">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded font-mono uppercase ${isSelected ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                                    {biz.code || 'BIZ'}
+                                  </span>
+                                  <span className="text-xs font-bold truncate">{biz.name}</span>
+                                </div>
+                                {biz.description && (
+                                  <span className={`text-[10px] block truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                    {biz.description}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && <Check size={14} className="shrink-0 text-white ml-2" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-1 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBizDropdownOpen(false);
+                          setActiveTab('settings');
+                        }}
+                        className="w-full text-center py-2 text-[11px] font-bold text-blue-400 hover:text-blue-300 hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <span>+ เพิ่ม / จัดการบริษัท (ในหน้าตั้งค่า)</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* ข้อมูลประวัติผู้เข้าระบบจาก Google Account */}
             {user && (
               <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/60 max-w-[260px] md:max-w-none">
@@ -441,6 +571,48 @@ export default function App() {
 
       {/* 2. เนื้อหาหลักของแดชบอร์ด */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* แถบแจ้งเตือนบริษัทที่กำลังบันทึกข้อมูล พร้อมปุ่มสลับบริษัทด่วน */}
+        <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl ${getBusinessColorClasses(activeBusiness.color).bg} ${getBusinessColorClasses(activeBusiness.color).text}`}>
+              <Building2 size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-slate-500">สมุดบัญชีที่กำลังใช้งาน:</span>
+                <span className="text-sm font-black text-slate-900">{activeBusiness.name}</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase font-mono ${getBusinessColorClasses(activeBusiness.color).badge}`}>
+                  {activeBusiness.code || 'BIZ'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {activeBusiness.description || 'ข้อมูลรายรับ รายจ่าย และกำไรจะถูกบันทึกแยกสมุดบัญชีเด็ดขาด 100%'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <button
+              type="button"
+              id="btn-quick-switch-biz"
+              onClick={() => setIsBizDropdownOpen(true)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <Building2 size={13} />
+              <span>สลับบริษัท</span>
+            </button>
+            <button
+              type="button"
+              id="btn-quick-manage-biz"
+              onClick={() => setActiveTab('settings')}
+              className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+            >
+              <Settings size={13} />
+              <span>จัดการบริษัท</span>
+            </button>
+          </div>
+        </div>
+
         {/* แนะนำประโยชน์ด้านล่าง แยกลำดับ Tab ด้วยการออกแบบเปี่ยมเสน่ห์ */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 print:hidden" id="navigation-tabs-container">
           {tabs.map((tab) => {
@@ -469,7 +641,7 @@ export default function App() {
         <div className="min-h-[500px]" id="tab-content-portal">
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeTab + currentDate}
+              key={activeTab + currentDate + activeBusinessId}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -507,14 +679,27 @@ export default function App() {
                   currentDate={currentDate}
                   onDateChange={handleDateChange}
                   record={currentRecord}
+                  businessName={activeBusiness.name}
+                  businessCode={activeBusiness.code}
                 />
               )}
 
               {activeTab === 'summary' && (
-                <SummaryReportModule currentDate={currentDate} />
+                <SummaryReportModule
+                  currentDate={currentDate}
+                  activeBusinessId={activeBusinessId}
+                  businesses={businesses}
+                />
               )}
 
-              {activeTab === 'settings' && <ManageTestsModule />}
+              {activeTab === 'settings' && (
+                <ManageTestsModule
+                  businesses={businesses}
+                  activeBusinessId={activeBusinessId}
+                  onSelectBusiness={handleSelectBusiness}
+                  onBusinessesChange={(newList) => setBusinesses(newList)}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

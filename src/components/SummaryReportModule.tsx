@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DailyRecord } from '../types';
+import { DailyRecord, Business } from '../types';
 import { formatNumber } from '../constants';
-import { loadAllRecords } from '../utils/storage';
-import { subscribeToRecords } from '../utils/firebase';
+import { loadAllRecords, loadBusinesses } from '../utils/storage';
+import { subscribeToRecords, subscribeToBusinesses } from '../utils/firebase';
 import * as XLSX from 'xlsx';
 import {
   BarChart,
@@ -32,25 +32,52 @@ import {
   ChevronDown,
   BarChart3,
   ListOrdered,
+  Building2,
 } from 'lucide-react';
 
 interface SummaryReportProps {
   currentDate: string;
+  activeBusinessId?: string;
+  businesses?: Business[];
 }
 
-export default function SummaryReportModule({ currentDate }: SummaryReportProps) {
+export default function SummaryReportModule({
+  currentDate,
+  activeBusinessId,
+  businesses: propBusinesses,
+}: SummaryReportProps) {
   // วันที่เริ่มต้น-สิ้นสุด สำหรับภาพรวม
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [records, setRecords] = useState<Record<string, DailyRecord>>({});
+  const [businesses, setBusinesses] = useState<Business[]>(() => propBusinesses || loadBusinesses());
+  const [selectedBiz, setSelectedBiz] = useState<string>(activeBusinessId || 'all');
+  
+  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>({});
+  const [flatRecords, setFlatRecords] = useState<Record<string, DailyRecord>>({});
 
   useEffect(() => {
-    // กำหนดค่าเริ่มต้นว่างเปล่าเพื่อให้ใช้คลาวด์ Firestore เป็นแหล่งข้อมูลหนึ่งเดียว 100%
-    setRecords({});
+    if (propBusinesses && propBusinesses.length > 0) {
+      setBusinesses(propBusinesses);
+    }
+  }, [propBusinesses]);
 
+  useEffect(() => {
+    if (activeBusinessId) {
+      setSelectedBiz(activeBusinessId);
+    }
+  }, [activeBusinessId]);
+
+  useEffect(() => {
     // สมัครเชื่อมสัญญาณสดเรียลไทม์จากค่ายระบบคลาวด์ Firebase
-    const unsubscribe = subscribeToRecords((allRecords) => {
-      setRecords(allRecords);
+    const unsubscribeRecords = subscribeToRecords((byBiz, flat) => {
+      setRecordsByBusiness(byBiz);
+      setFlatRecords(flat);
+    });
+
+    const unsubscribeBusinesses = subscribeToBusinesses((updatedList) => {
+      if (updatedList && updatedList.length > 0) {
+        setBusinesses(updatedList);
+      }
     });
 
     // เซ็ตค่าช่วงเริ่มต้นเป็น 7 วันที่ผ่านมา ถึงวันนี้ เท่านั้นถ้าไม่ได้เซ็ตค่าไว้ก่อน
@@ -71,9 +98,63 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
     }
 
     return () => {
-      unsubscribe();
+      unsubscribeRecords();
+      unsubscribeBusinesses();
     };
   }, [currentDate]);
+
+  // คำนวณ records ตามบริษัทที่เลือกกรอง
+  const records = React.useMemo(() => {
+    if (selectedBiz !== 'all') {
+      return recordsByBusiness[selectedBiz] || {};
+    }
+
+    // กรณีเลือก "รวมทุกบริษัท (Consolidated)" ให้รวมข้อมูลแต่ละวันเข้าด้วยกัน
+    const aggregated: Record<string, DailyRecord> = {};
+
+    Object.keys(recordsByBusiness).forEach((bId) => {
+      const bizRecords = recordsByBusiness[bId] || {};
+      Object.keys(bizRecords).forEach((d) => {
+        const rec = bizRecords[d];
+        if (!aggregated[d]) {
+          aggregated[d] = {
+            date: d,
+            incomeItems: [...(rec.incomeItems || [])],
+            expenseItems: [...(rec.expenseItems || [])],
+            outLabItems: [...(rec.outLabItems || [])],
+            hasOutLab: rec.hasOutLab !== false,
+            cashCheck: {
+              countedCash: rec.cashCheck?.countedCash || 0,
+              note: rec.cashCheck?.note || '',
+              isSaved: rec.cashCheck?.isSaved || false,
+            },
+          };
+        } else {
+          aggregated[d].incomeItems = [
+            ...aggregated[d].incomeItems,
+            ...(rec.incomeItems || []),
+          ];
+          aggregated[d].expenseItems = [
+            ...aggregated[d].expenseItems,
+            ...(rec.expenseItems || []),
+          ];
+          aggregated[d].outLabItems = [
+            ...aggregated[d].outLabItems,
+            ...(rec.outLabItems || []),
+          ];
+          if (rec.hasOutLab !== false) {
+            aggregated[d].hasOutLab = true;
+          }
+          aggregated[d].cashCheck.countedCash += rec.cashCheck?.countedCash || 0;
+        }
+      });
+    });
+
+    return aggregated;
+  }, [selectedBiz, recordsByBusiness]);
+
+  const activeBizObj = businesses.find((b) => b.id === selectedBiz);
+  const activeBizTitle = selectedBiz === 'all' ? 'รวมทุกบริษัท / ธุรกิจ' : activeBizObj?.name || 'คลินิกและแล็บ';
 
   // หาลิสต์วันที่ตามระยะห่าง (Range)
   const getDateRangeList = (startStr: string, endStr: string) => {
@@ -205,11 +286,13 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
 
   // --- ส่งออก Excel ภาพรวมสะสม ---
   const handleExportExcel = () => {
-    const filename = `ClinicLab_SummaryReport_${startDate}_to_${endDate}.xlsx`;
+    const bizPrefix = selectedBiz === 'all' ? 'AllBiz' : (activeBizObj?.code || 'BIZ');
+    const filename = `${bizPrefix}_SummaryReport_${startDate}_to_${endDate}.xlsx`;
 
     // 1. หัวตาราง
     const headerRow = [
-      ['สรุปผลรายงานภาพรวมบัญชีสะสม คลินิกและแล็บ'],
+      ['สรุปผลรายงานภาพรวมบัญชีสะสม'],
+      [`บริษัท/ธุรกิจ: ${activeBizTitle}`],
       [`ช่วงวันที่: ${startDate} ถึง ${endDate}`],
       [],
     ];
@@ -263,9 +346,27 @@ export default function SummaryReportModule({ currentDate }: SummaryReportProps)
 
   return (
     <div className="space-y-6" id="summary-report-module">
-      {/* พาเนลควบคุมช่วงวันที่ */}
+      {/* พาเนลควบคุมช่วงวันที่ และเลือกฟิลเตอร์ธุรกิจ */}
       <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-150 flex flex-wrap gap-4 items-center justify-between print:hidden">
         <div className="flex flex-wrap gap-4 items-center">
+          {/* ตัวเลือกฟิลเตอร์ธุรกิจ */}
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <Building2 size={16} className="text-blue-600 shrink-0" />
+            <span className="text-xs font-bold text-slate-700">ธุรกิจ / บริษัท:</span>
+            <select
+              value={selectedBiz}
+              onChange={(e) => setSelectedBiz(e.target.value)}
+              className="text-xs font-bold text-blue-700 bg-white border border-blue-200 focus:border-blue-500 outline-none rounded-lg px-2.5 py-1"
+            >
+              <option value="all">🏢 รวมทุกบริษัท/ธุรกิจ (Consolidated)</option>
+              {businesses.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code || 'BIZ'})
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-500">ตั้งแต่</span>
             <input

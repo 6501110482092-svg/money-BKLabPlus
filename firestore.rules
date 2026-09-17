@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     // อนุญาตแชร์ข้อมูลและบันทึกร่วมกันข้ามอุปกรณ์ รองรับระบบล็อกอินเลี่ยงสิทธิ์ (Bypass) และ Google Account สดลื่นไหล
-    match /records/{date} {
+    match /records/{recordId} {
       allow read, write: if true;
     }
 

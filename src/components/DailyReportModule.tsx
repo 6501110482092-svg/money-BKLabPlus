@@ -13,12 +13,16 @@ interface DailyReportModuleProps {
   currentDate: string;
   onDateChange: (date: string) => void;
   record: DailyRecord;
+  businessName?: string;
+  businessCode?: string;
 }
 
 export default function DailyReportModule({
   currentDate,
   onDateChange,
   record,
+  businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
+  businessCode = 'CLN',
 }: DailyReportModuleProps) {
   const incomeItems = record.incomeItems || [];
   const expenseItems = record.expenseItems || [];
@@ -67,10 +71,15 @@ export default function DailyReportModule({
 
   // --- ส่งออกไฟล์ Excel ---
   const handleExportExcel = () => {
-    const filename = `ClinicLab_DailyReport_${currentDate}.xlsx`;
+    const filename = `${businessCode || 'BIZ'}_DailyReport_${currentDate}.xlsx`;
 
     // 1. หัวตาราง
-    const headerRow = [['รายงานประจำวัน - บันทึกรายรับ-รายจ่าย คลินิกและแล็บ'], [`วันที่: ${currentDate}`], []];
+    const headerRow = [
+      ['รายงานประจำวัน - บันทึกรายรับ-รายจ่าย'],
+      [`บริษัท/ธุรกิจ: ${businessName} (${businessCode})`],
+      [`วันที่: ${currentDate}`],
+      [],
+    ];
 
     // 2. ข้อมูลรายรับ
     const incomeRows = [
@@ -195,12 +204,19 @@ export default function DailyReportModule({
           <div>
             <div className="flex items-center gap-2.5">
               <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
-              <span className="text-xl md:text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Daily Ledger
-              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl md:text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Daily Ledger
+                  </span>
+                  <span className="text-xs font-black px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                    {businessName}
+                  </span>
+                </div>
+              </div>
             </div>
             <p className="text-xs text-gray-400 mt-1 uppercase font-semibold tracking-wider">
-              Clinical & Laboratory Income-Expense Daily Report
+              Income-Expense Daily Report • {businessName}
             </p>
           </div>
           <div className="mt-4 md:mt-0 text-left md:text-right">
