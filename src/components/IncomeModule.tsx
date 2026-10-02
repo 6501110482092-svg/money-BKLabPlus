@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DailyRecord, IncomeItem } from '../types';
 import { formatNumber } from '../constants';
-import { Plus, Trash2, Save, Calendar, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Save, Calendar, CheckCircle, Hash, Sparkles, X, Settings2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface IncomeModuleProps {
@@ -26,9 +26,50 @@ export default function IncomeModule({
   const [transferItems, setTransferItems] = useState<IncomeItem[]>([]);
   const [showSavedToast, setShowSavedToast] = useState(false);
 
-  // โฟกัสสำหรับรายการใหม่ล่าสุด
-  const cashInputRef = useRef<HTMLInputElement | null>(null);
-  const transferInputRef = useRef<HTMLInputElement | null>(null);
+  // ระบบเลขนำหน้าอัตโนมัติ (Auto-Prefix) อิงตามปีและเดือนของวันที่ เช่น ปี 2026 เดือน 10 -> '2610'
+  const [autoPrefixEnabled, setAutoPrefixEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bklabplus_auto_prefix_income');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [prefixYearFormat, setPrefixYearFormat] = useState<'CE' | 'BE'>(() => {
+    const saved = localStorage.getItem('bklabplus_prefix_year_format');
+    return saved === 'BE' ? 'BE' : 'CE'; // ค่าเริ่มต้น CE เช่น 2026 -> '26' รวมเดือน 10 เป็น '2610'
+  });
+
+  const [showPrefixConfig, setShowPrefixConfig] = useState(false);
+
+  // คำนวณเลขนำหน้าตามวันที่ปัจจุบัน
+  const currentPrefix = useMemo(() => {
+    if (!currentDate) return '';
+    const parts = currentDate.split('-');
+    if (parts.length >= 2) {
+      const rawYear = parseInt(parts[0], 10);
+      const mm = parts[1]; // เดือน 2 หลัก เช่น '10'
+      if (prefixYearFormat === 'BE') {
+        // รูปแบบ พ.ศ. เช่น 2569 -> '69'
+        const beYear = (rawYear + 543).toString().slice(-2);
+        return `${beYear}${mm}`;
+      } else {
+        // รูปแบบ ค.ศ. เช่น 2026 -> '26'
+        const ceYear = parts[0].slice(-2);
+        return `${ceYear}${mm}`;
+      }
+    }
+    return '';
+  }, [currentDate, prefixYearFormat]);
+
+  const toggleAutoPrefix = () => {
+    const nextVal = !autoPrefixEnabled;
+    setAutoPrefixEnabled(nextVal);
+    localStorage.setItem('bklabplus_auto_prefix_income', String(nextVal));
+  };
+
+  const handleYearFormatChange = (fmt: 'CE' | 'BE') => {
+    setPrefixYearFormat(fmt);
+    localStorage.setItem('bklabplus_prefix_year_format', fmt);
+  };
+
   const prevRecordRef = useRef<string>('');
 
   // โหลดรายการจาก record เมื่อมีการเปลี่ยนวันที่ หรือเมื่อบันทึกจากที่อื่นโดยไม่มีการแก้ไขค้างอยู่
@@ -44,7 +85,7 @@ export default function IncomeModule({
     }
   }, [record, currentDate]);
 
-  // ระบบ Auto-Save บันทึกข้อมูลเรียลไทม์เบื้องหลังเมื่อหยุดพิมพ์ 1.2 วินาที (ไม่มีข้อความหมุนกวนใจ)
+  // ระบบ Auto-Save บันทึกข้อมูลเรียลไทม์เบื้องหลังเมื่อหยุดพิมพ์ 1.2 วินาที
   const recordRef = useRef(record);
   useEffect(() => {
     recordRef.current = record;
@@ -58,8 +99,11 @@ export default function IncomeModule({
     }
 
     const timer = setTimeout(() => {
-      const validCash = cashItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
-      const validTransfer = transferItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
+      const isItemValid = (item: IncomeItem) =>
+        item.amount > 0 || (item.description.trim() !== '' && item.description.trim() !== currentPrefix);
+
+      const validCash = cashItems.filter(isItemValid);
+      const validTransfer = transferItems.filter(isItemValid);
 
       const serializedLocal = JSON.stringify([...validCash, ...validTransfer]);
       const currentRecordLatest = recordRef.current;
@@ -76,45 +120,49 @@ export default function IncomeModule({
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [cashItems, transferItems]);
+  }, [cashItems, transferItems, currentPrefix]);
 
-  // ซิงค์การเปลี่ยนแปลงยอดเงินสดและเงินโอน
-  const updateItems = (updatedCash: IncomeItem[], updatedTransfer: IncomeItem[]) => {
-    setCashItems(updatedCash);
-    setTransferItems(updatedTransfer);
-  };
-
+  // เพิ่มรายการเงินสดพร้อมใส่เลขนำหน้าอัตโนมัติ
   const addCashItem = () => {
+    const prefix = autoPrefixEnabled ? currentPrefix : '';
     const newItem: IncomeItem = {
       id: `cash-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      description: '',
+      description: prefix,
       amount: 0,
       type: 'cash',
     };
     const updated = [...cashItems, newItem];
     setCashItems(updated);
     setTimeout(() => {
-      // โฟกัสไปที่ช่องคีย์ล่าสุด
-      const inputs = document.querySelectorAll('.cash-desc-input');
+      // โฟกัสไปที่ช่องคีย์ล่าสุด และวางเคอร์เซอร์ไว้ท้ายสุดของตัวเลขนำหน้า เพื่อให้พิมพ์ต่อได้ทันที
+      const inputs = document.querySelectorAll<HTMLInputElement>('.cash-desc-input');
       if (inputs.length > 0) {
-        (inputs[inputs.length - 1] as HTMLInputElement).focus();
+        const lastInput = inputs[inputs.length - 1];
+        lastInput.focus();
+        const len = lastInput.value.length;
+        lastInput.setSelectionRange(len, len);
       }
     }, 50);
   };
 
+  // เพิ่มรายการเงินโอนพร้อมใส่เลขนำหน้าอัตโนมัติ
   const addTransferItem = () => {
+    const prefix = autoPrefixEnabled ? currentPrefix : '';
     const newItem: IncomeItem = {
       id: `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      description: '',
+      description: prefix,
       amount: 0,
       type: 'transfer',
     };
     const updated = [...transferItems, newItem];
     setTransferItems(updated);
     setTimeout(() => {
-      const inputs = document.querySelectorAll('.transfer-desc-input');
+      const inputs = document.querySelectorAll<HTMLInputElement>('.transfer-desc-input');
       if (inputs.length > 0) {
-        (inputs[inputs.length - 1] as HTMLInputElement).focus();
+        const lastInput = inputs[inputs.length - 1];
+        lastInput.focus();
+        const len = lastInput.value.length;
+        lastInput.setSelectionRange(len, len);
       }
     }, 50);
   };
@@ -153,28 +201,27 @@ export default function IncomeModule({
   const totalIncome = totalCash + totalTransfer;
 
   const handleSave = () => {
-    // กรองเอารายการที่จำนวนเงิน > 0 หรือมีคำอธิบายออกมาก่อนบันทึกเพื่อความสะอาด
-    const validCash = cashItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
-    const validTransfer = transferItems.filter((item) => item.description.trim() !== '' || item.amount > 0);
+    const isItemValid = (item: IncomeItem) =>
+      item.amount > 0 || (item.description.trim() !== '' && item.description.trim() !== currentPrefix);
+
+    const validCash = cashItems.filter(isItemValid);
+    const validTransfer = transferItems.filter(isItemValid);
 
     const updatedRecord: DailyRecord = {
       ...record,
       incomeItems: [...validCash, ...validTransfer],
     };
 
-    // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
     prevRecordRef.current = JSON.stringify([...validCash, ...validTransfer]);
-
     onSaveRecord(updatedRecord);
     setShowSavedToast(true);
     setTimeout(() => setShowSavedToast(false), 2500);
 
-    // อัปเดต state ด้วยรายการที่คลีนแล้ว
     setCashItems(validCash);
     setTransferItems(validTransfer);
   };
 
-  // บันทึกด้วยคีย์ลัด F8 (ใช้ capture ป้องกันเบราว์เซอร์ดึงไปใช้ก่อน)
+  // บันทึกด้วยคีย์ลัด F8
   const saveRef = useRef(handleSave);
   useEffect(() => {
     saveRef.current = handleSave;
@@ -182,29 +229,25 @@ export default function IncomeModule({
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const isF8 = e.key === 'F8';
-
-      if (isF8) {
+      if (e.key === 'F8') {
         e.preventDefault();
         e.stopPropagation();
         saveRef.current();
       }
     };
-    // ใช้ capture = true เพื่อดักจับ Event ก่อนที่จะถูก Browser หรือ Element อื่นขัดขวาง
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
 
   // คีย์ลัด Enter สำหรับช่องกรอก รายการ/จำนวนเงิน
-  const handleCashKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number, isAmountField: boolean) => {
+  const handleCashKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // หากกด Enter ในช่องกรอกจำนวนเงิน หรือคำอธิบาย จะทำการเปิดแถวถัดไปทันที
       addCashItem();
     }
   };
 
-  const handleTransferKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number, isAmountField: boolean) => {
+  const handleTransferKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addTransferItem();
@@ -213,22 +256,87 @@ export default function IncomeModule({
 
   return (
     <div className="space-y-6" id="income-module-container">
-      {/* ส่วนควบคุม วันที่ */}
-      <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
-            <Calendar size={20} />
+      {/* ส่วนควบคุม วันที่ และแถบเลขนำหน้าอัตโนมัติ */}
+      <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-150 flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <span className="text-xs text-gray-400 font-medium block">แก้ไขข้อมูลของวันที่</span>
+              <input
+                type="date"
+                id="income-date-picker"
+                value={currentDate}
+                onChange={(e) => onDateChange(e.target.value)}
+                className="text-sm font-semibold text-gray-700 outline-none border border-gray-205 focus:border-blue-500 rounded px-2.5 py-1 bg-gray-50 cursor-pointer"
+              />
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-gray-400 font-medium block">แก้ไขข้อมูลของวันที่</span>
-            <input
-              type="date"
-              id="income-date-picker"
-              value={currentDate}
-              onChange={(e) => onDateChange(e.target.value)}
-              className="text-sm font-semibold text-gray-700 outline-none border border-gray-205 focus:border-blue-500 rounded px-2.5 py-1 bg-gray-50"
-            />
+
+          {/* แถบสวิตช์เลขนำหน้าอัตโนมัติ (Auto-Prefix เช่น 2610) */}
+          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50/70 to-indigo-50/50 px-3 py-1.5 rounded-xl border border-blue-200/80">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={autoPrefixEnabled}
+                onChange={toggleAutoPrefix}
+                className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                <Sparkles size={13} className="text-blue-600" />
+                <span>เติมเลขอัตโนมัติ:</span>
+              </span>
+            </label>
+
+            {autoPrefixEnabled && (
+              <span
+                className="px-2 py-0.5 bg-blue-600 text-white font-mono font-bold text-xs rounded-md shadow-2xs cursor-default"
+                title={`เลขอิงตามปีและเดือนของวันที่ ${currentDate}`}
+              >
+                {currentPrefix}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowPrefixConfig(!showPrefixConfig)}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-white/60 transition-colors cursor-pointer"
+              title="ตั้งค่ารูปแบบเลขนำหน้า"
+            >
+              <Settings2 size={13} />
+            </button>
           </div>
+
+          {/* ป๊อปอัปตั้งค่ารูปแบบเลขนำหน้า (CE / BE) */}
+          {showPrefixConfig && (
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-sm text-xs">
+              <span className="font-semibold text-slate-600">รูปแบบปี:</span>
+              <button
+                type="button"
+                onClick={() => handleYearFormatChange('CE')}
+                className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                  prefixYearFormat === 'CE'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                ค.ศ. ({currentDate.slice(2, 4) || '26'}{currentDate.slice(5, 7) || '10'})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleYearFormatChange('BE')}
+                className={`px-2 py-0.5 rounded font-bold cursor-pointer transition-all ${
+                  prefixYearFormat === 'BE'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                พ.ศ. ({((parseInt(currentDate.slice(0, 4), 10) || 2026) + 543).toString().slice(-2)}{currentDate.slice(5, 7) || '10'})
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -240,7 +348,7 @@ export default function IncomeModule({
           <button
             onClick={handleSave}
             id="btn-save-income"
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all shadow-xs"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all shadow-xs cursor-pointer"
           >
             <Save size={16} />
             <span>บันทึกรายรับของวัน</span>
@@ -260,10 +368,15 @@ export default function IncomeModule({
               <button
                 onClick={addCashItem}
                 id="btn-add-cash"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
               >
                 <Plus size={14} />
                 <span>เพิ่มรายการ</span>
+                {autoPrefixEnabled && currentPrefix && (
+                  <span className="text-[10px] font-mono font-bold bg-emerald-200/70 text-emerald-900 px-1 rounded">
+                    {currentPrefix}...
+                  </span>
+                )}
               </button>
             </div>
 
@@ -272,9 +385,9 @@ export default function IncomeModule({
                 <p className="text-gray-400 text-sm">ยังไม่มีรายการเงินสด</p>
                 <button
                   onClick={addCashItem}
-                  className="mt-2 text-xs font-semibold text-emerald-600 hover:underline"
+                  className="mt-2 text-xs font-semibold text-emerald-600 hover:underline cursor-pointer"
                 >
-                  + เพิ่มรายการแรก
+                  + เพิ่มรายการแรก {autoPrefixEnabled && currentPrefix && `(ขึ้นต้น ${currentPrefix}...)`}
                 </button>
               </div>
             ) : (
@@ -287,14 +400,35 @@ export default function IncomeModule({
                     exit={{ opacity: 0 }}
                     className="flex gap-2 items-center"
                   >
-                    <input
-                      type="text"
-                      className="cash-desc-input flex-1 text-sm border border-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none py-1.5 px-3 rounded-lg bg-gray-50/50"
-                      placeholder="รายการเงินสด (เช่น ค่าตรวจพิกัด, ตรวจแล็บ)"
-                      value={item.description}
-                      onChange={(e) => handleCashChange(index, 'description', e.target.value)}
-                      onKeyDown={(e) => handleCashKeyDown(e, index, false)}
-                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        className="cash-desc-input w-full text-sm border border-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none py-1.5 px-3 rounded-lg bg-gray-50/50 pr-7"
+                        placeholder={`รายการเงินสด (เช่น ${currentPrefix || '2610'}01, ค่าตรวจ)`}
+                        value={item.description}
+                        onFocus={(e) => {
+                          // หากเป็นเลขนำหน้าอัตโนมัติ ให้วางเคอร์เซอร์ไว้ท้ายสุดทันที เพื่อให้พิมพ์เลขต่อได้ทันที
+                          if (e.target.value === currentPrefix) {
+                            const len = e.target.value.length;
+                            e.target.setSelectionRange(len, len);
+                          }
+                        }}
+                        onChange={(e) => handleCashChange(index, 'description', e.target.value)}
+                        onKeyDown={handleCashKeyDown}
+                      />
+                      {/* ปุ่มลบตัวเลขหรือล้างข้อความได้ทันทีในกรณีเป็นรายได้อื่น */}
+                      {item.description && (
+                        <button
+                          type="button"
+                          onClick={() => handleCashChange(index, 'description', '')}
+                          className="absolute right-2 top-2 text-gray-300 hover:text-gray-500 text-xs p-0.5 rounded cursor-pointer"
+                          title="ล้างข้อความเพื่อพิมพ์รายได้อื่น"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="relative w-36">
                       <input
                         type="number"
@@ -302,13 +436,15 @@ export default function IncomeModule({
                         placeholder="0.00"
                         value={item.amount || ''}
                         onChange={(e) => handleCashChange(index, 'amount', parseFloat(e.target.value) || 0)}
-                        onKeyDown={(e) => handleCashKeyDown(e, index, true)}
+                        onKeyDown={handleCashKeyDown}
                       />
                       <span className="absolute right-2 top-1.5 text-xs text-gray-400">฿</span>
                     </div>
+
                     <button
                       onClick={() => removeCashItem(item.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                      title="ลบรายการนี้"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -335,10 +471,15 @@ export default function IncomeModule({
               <button
                 onClick={addTransferItem}
                 id="btn-add-transfer"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
               >
                 <Plus size={14} />
                 <span>เพิ่มรายการ</span>
+                {autoPrefixEnabled && currentPrefix && (
+                  <span className="text-[10px] font-mono font-bold bg-blue-200/70 text-blue-900 px-1 rounded">
+                    {currentPrefix}...
+                  </span>
+                )}
               </button>
             </div>
 
@@ -347,9 +488,9 @@ export default function IncomeModule({
                 <p className="text-gray-400 text-sm">ยังไม่มีรายการโอนเงิน</p>
                 <button
                   onClick={addTransferItem}
-                  className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+                  className="mt-2 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
                 >
-                  + เพิ่มรายการแรก
+                  + เพิ่มรายการแรก {autoPrefixEnabled && currentPrefix && `(ขึ้นต้น ${currentPrefix}...)`}
                 </button>
               </div>
             ) : (
@@ -362,14 +503,33 @@ export default function IncomeModule({
                     exit={{ opacity: 0 }}
                     className="flex gap-2 items-center"
                   >
-                    <input
-                      type="text"
-                      className="transfer-desc-input flex-1 text-sm border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none py-1.5 px-3 rounded-lg bg-gray-50/50"
-                      placeholder="รายการเงินโอน (เช่น โอนสแกน, สิทธิ์ประกัน)"
-                      value={item.description}
-                      onChange={(e) => handleTransferChange(index, 'description', e.target.value)}
-                      onKeyDown={(e) => handleTransferKeyDown(e, index, false)}
-                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        className="transfer-desc-input w-full text-sm border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none py-1.5 px-3 rounded-lg bg-gray-50/50 pr-7"
+                        placeholder={`รายการเงินโอน (เช่น ${currentPrefix || '2610'}01, สิทธิ์ประกัน)`}
+                        value={item.description}
+                        onFocus={(e) => {
+                          if (e.target.value === currentPrefix) {
+                            const len = e.target.value.length;
+                            e.target.setSelectionRange(len, len);
+                          }
+                        }}
+                        onChange={(e) => handleTransferChange(index, 'description', e.target.value)}
+                        onKeyDown={handleTransferKeyDown}
+                      />
+                      {item.description && (
+                        <button
+                          type="button"
+                          onClick={() => handleTransferChange(index, 'description', '')}
+                          className="absolute right-2 top-2 text-gray-300 hover:text-gray-500 text-xs p-0.5 rounded cursor-pointer"
+                          title="ล้างข้อความเพื่อพิมพ์รายได้อื่น"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="relative w-36">
                       <input
                         type="number"
@@ -377,13 +537,15 @@ export default function IncomeModule({
                         placeholder="0.00"
                         value={item.amount || ''}
                         onChange={(e) => handleTransferChange(index, 'amount', parseFloat(e.target.value) || 0)}
-                        onKeyDown={(e) => handleTransferKeyDown(e, index, true)}
+                        onKeyDown={handleTransferKeyDown}
                       />
                       <span className="absolute right-2 top-1.5 text-xs text-gray-400">฿</span>
                     </div>
+
                     <button
                       onClick={() => removeTransferItem(item.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                      title="ลบรายการนี้"
                     >
                       <Trash2 size={16} />
                     </button>
