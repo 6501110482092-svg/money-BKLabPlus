@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DailyRecord, Business } from '../types';
 import { formatNumber } from '../constants';
-import { loadAllRecords, loadBusinesses } from '../utils/storage';
+import { loadBusinesses } from '../utils/storage';
 import { subscribeToRecords, subscribeToBusinesses } from '../utils/firebase';
 import * as XLSX from 'xlsx';
 import {
@@ -33,12 +33,68 @@ import {
   BarChart3,
   ListOrdered,
   Building2,
+  CheckSquare,
+  Square,
+  Wallet,
+  Receipt,
+  FlaskConical,
+  Eye,
+  EyeOff,
+  Layers,
+  Search,
+  Filter,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface SummaryReportProps {
   currentDate: string;
   activeBusinessId?: string;
   businesses?: Business[];
+}
+
+interface DetailedIncomeItem {
+  id: string;
+  date: string;
+  description: string;
+  type: 'cash' | 'transfer';
+  amount: number;
+}
+
+interface DetailedExpenseItem {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+}
+
+interface DetailedOutLabItem {
+  id: string;
+  date: string;
+  labNumber: string;
+  testName: string;
+  amount: number;
+}
+
+interface GroupedOutLab {
+  testName: string;
+  unitPrice: number;
+  count: number;
+  totalAmount: number;
+}
+
+interface GroupedIncome {
+  description: string;
+  count: number;
+  totalAmount: number;
+  cashAmount: number;
+  transferAmount: number;
+}
+
+interface GroupedExpense {
+  description: string;
+  count: number;
+  totalAmount: number;
 }
 
 export default function SummaryReportModule({
@@ -51,9 +107,22 @@ export default function SummaryReportModule({
   const [endDate, setEndDate] = useState<string>('');
   const [businesses, setBusinesses] = useState<Business[]>(() => propBusinesses || loadBusinesses());
   const [selectedBiz, setSelectedBiz] = useState<string>(activeBusinessId || 'all');
-  
+
+  // ตัวเลือกแสดง/ซ่อนรายละเอียดแต่ละตาราง (ตามที่ผู้ใช้ต้องการ: เพื่อจะได้ไม่ต้องแสดงตารางเปล่า)
+  const [showIncomeDetails, setShowIncomeDetails] = useState<boolean>(true);
+  const [showExpenseDetails, setShowExpenseDetails] = useState<boolean>(true);
+  const [showOutLabDetails, setShowOutLabDetails] = useState<boolean>(true);
+
+  // สลับโหมดมุมมอง: รายการทั้งหมด (Itemized) หรือ จัดกลุ่มตามชื่อรายการ (Grouped)
+  const [incomeViewMode, setIncomeViewMode] = useState<'itemized' | 'grouped'>('itemized');
+  const [expenseViewMode, setExpenseViewMode] = useState<'itemized' | 'grouped'>('itemized');
+  const [outLabViewMode, setOutLabViewMode] = useState<'grouped' | 'itemized'>('grouped');
+
+  // ช่องค้นหาเพิ่มเติม
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
   const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>({});
-  const [flatRecords, setFlatRecords] = useState<Record<string, DailyRecord>>({});
+  const [, setFlatRecords] = useState<Record<string, DailyRecord>>({});
 
   useEffect(() => {
     if (propBusinesses && propBusinesses.length > 0) {
@@ -104,7 +173,7 @@ export default function SummaryReportModule({
   }, [currentDate]);
 
   // คำนวณ records ตามบริษัทที่เลือกกรอง
-  const records = React.useMemo(() => {
+  const records = useMemo(() => {
     if (selectedBiz !== 'all') {
       return recordsByBusiness[selectedBiz] || {};
     }
@@ -154,7 +223,11 @@ export default function SummaryReportModule({
   }, [selectedBiz, recordsByBusiness]);
 
   const activeBizObj = businesses.find((b) => b.id === selectedBiz);
-  const activeBizTitle = selectedBiz === 'all' ? 'รวมทุกบริษัท / ธุรกิจ' : activeBizObj?.name || 'คลินิกและแล็บ';
+  // ชื่อแล็บ/ธุรกิจสำหรับแสดงในหัวกระดาษเอกสารและรายงาน
+  const activeBizTitle =
+    selectedBiz === 'all'
+      ? 'รวมทุกบริษัท / ธุรกิจ (Consolidated Ledger)'
+      : activeBizObj?.name || 'คลินิกและแล็บ';
 
   // หาลิสต์วันที่ตามระยะห่าง (Range)
   const getDateRangeList = (startStr: string, endStr: string) => {
@@ -168,7 +241,7 @@ export default function SummaryReportModule({
     // ป้องกันหน้าเว็บค้างถ้าเผลอคีย์สลับฝั่ง
     if (start > end) return list;
 
-    const limit = 1000; // ลิมิตจำนวนวันเพื่อความปลอดภัย
+    const limit = 1000;
     let count = 0;
     while (current <= end && count < limit) {
       const year = current.getFullYear();
@@ -181,157 +254,330 @@ export default function SummaryReportModule({
     return list;
   };
 
-  const datesInRange = getDateRangeList(startDate, endDate);
+  const datesInRange = useMemo(() => getDateRangeList(startDate, endDate), [startDate, endDate]);
 
-  // คำนวณสรุปยอดสะสม
-  let totalRangeIncome = 0;
-  let totalRangeGeneralExpense = 0;
-  let totalRangeOutLab = 0;
+  // คำนวณรวบรวมรายการทั้งหมด
+  const {
+    allIncomeItems,
+    allExpenseItems,
+    allOutLabItems,
+    totalRangeIncome,
+    totalRangeIncomeCash,
+    totalRangeIncomeTransfer,
+    totalRangeGeneralExpense,
+    totalRangeOutLab,
+    sortedOutLabList,
+    groupedIncomeList,
+    groupedExpenseList,
+  } = useMemo(() => {
+    const incomes: DetailedIncomeItem[] = [];
+    const expenses: DetailedExpenseItem[] = [];
+    const outLabs: DetailedOutLabItem[] = [];
 
-  // รวบรวมข้อมูล Out-Lab แยกตาม Test
-  interface GroupedOutLab {
-    testName: string;
-    unitPrice: number;
-    count: number;
-    totalAmount: number;
-  }
+    let sumIncome = 0;
+    let sumIncomeCash = 0;
+    let sumIncomeTransfer = 0;
+    let sumGeneralExp = 0;
+    let sumOutLabExp = 0;
 
-  const outLabGroups: Record<string, { count: number; totalAmount: number; prices: number[] }> = {};
+    const outLabGroupMap: Record<string, { count: number; totalAmount: number; prices: number[] }> = {};
+    const incomeGroupMap: Record<string, { count: number; totalAmount: number; cashAmount: number; transferAmount: number }> = {};
+    const expenseGroupMap: Record<string, { count: number; totalAmount: number }> = {};
 
-  // จัดช่วงวันที่ดึงข้อมูล
-  datesInRange.forEach((date) => {
-    const rec = records[date];
-    if (rec) {
-      // รายรับ
-      const incomeList = rec.incomeItems || [];
-      incomeList.forEach((item) => {
-        totalRangeIncome += Number(item.amount) || 0;
-      });
-
-      // รายจ่ายทั่วไป
-      const expenseList = rec.expenseItems || [];
-      expenseList.forEach((item) => {
-        totalRangeGeneralExpense += Number(item.amount) || 0;
-      });
-
-      // ดึงฝั่ง Out-Lab
-      if (rec.hasOutLab !== false) {
-        const outLabList = rec.outLabItems || [];
-        outLabList.forEach((item) => {
+    datesInRange.forEach((date) => {
+      const rec = records[date];
+      if (rec) {
+        // 1. รายรับ
+        (rec.incomeItems || []).forEach((item, idx) => {
           const amt = Number(item.amount) || 0;
-          totalRangeOutLab += amt;
-
-          const testName = (item.testName || 'ส่งแล็บทั่วไป (อื่นๆ)').trim();
-          if (!outLabGroups[testName]) {
-            outLabGroups[testName] = { count: 0, totalAmount: 0, prices: [] };
+          const pType = item.type === 'transfer' ? 'transfer' : 'cash';
+          sumIncome += amt;
+          if (pType === 'cash') {
+            sumIncomeCash += amt;
+          } else {
+            sumIncomeTransfer += amt;
           }
-          outLabGroups[testName].count += 1;
-          outLabGroups[testName].totalAmount += amt;
-          outLabGroups[testName].prices.push(amt);
+
+          const desc = (item.description || 'ไม่ได้ระบุชื่อรายการ').trim();
+          incomes.push({
+            id: item.id || `${date}-inc-${idx}`,
+            date,
+            description: desc,
+            type: pType,
+            amount: amt,
+          });
+
+          if (!incomeGroupMap[desc]) {
+            incomeGroupMap[desc] = { count: 0, totalAmount: 0, cashAmount: 0, transferAmount: 0 };
+          }
+          incomeGroupMap[desc].count += 1;
+          incomeGroupMap[desc].totalAmount += amt;
+          if (pType === 'cash') {
+            incomeGroupMap[desc].cashAmount += amt;
+          } else {
+            incomeGroupMap[desc].transferAmount += amt;
+          }
         });
+
+        // 2. รายจ่ายทั่วไป
+        (rec.expenseItems || []).forEach((item, idx) => {
+          const amt = Number(item.amount) || 0;
+          sumGeneralExp += amt;
+
+          const desc = (item.description || 'ไม่ได้ระบุชื่อรายการ').trim();
+          expenses.push({
+            id: item.id || `${date}-exp-${idx}`,
+            date,
+            description: desc,
+            amount: amt,
+          });
+
+          if (!expenseGroupMap[desc]) {
+            expenseGroupMap[desc] = { count: 0, totalAmount: 0 };
+          }
+          expenseGroupMap[desc].count += 1;
+          expenseGroupMap[desc].totalAmount += amt;
+        });
+
+        // 3. Out-Lab
+        if (rec.hasOutLab !== false) {
+          (rec.outLabItems || []).forEach((item, idx) => {
+            const amt = Number(item.amount) || 0;
+            sumOutLabExp += amt;
+            const tName = (item.testName || 'ส่งแล็บทั่วไป (อื่นๆ)').trim();
+
+            outLabs.push({
+              id: item.id || `${date}-lab-${idx}`,
+              date,
+              labNumber: item.labNumber || '-',
+              testName: tName,
+              amount: amt,
+            });
+
+            if (!outLabGroupMap[tName]) {
+              outLabGroupMap[tName] = { count: 0, totalAmount: 0, prices: [] };
+            }
+            outLabGroupMap[tName].count += 1;
+            outLabGroupMap[tName].totalAmount += amt;
+            outLabGroupMap[tName].prices.push(amt);
+          });
+        }
       }
-    }
-  });
+    });
+
+    // เรียง Out-Lab ตามความถี่มากไปน้อย
+    const sortedOutLabs: GroupedOutLab[] = Object.keys(outLabGroupMap).map((name) => {
+      const g = outLabGroupMap[name];
+      const unitPrice = g.count > 0 ? g.totalAmount / g.count : 0;
+      return {
+        testName: name,
+        unitPrice,
+        count: g.count,
+        totalAmount: g.totalAmount,
+      };
+    });
+    sortedOutLabs.sort((a, b) => b.count - a.count || b.totalAmount - a.totalAmount);
+
+    // เรียงจัดกลุ่มรายได้
+    const sortedIncomeGroups: GroupedIncome[] = Object.keys(incomeGroupMap).map((desc) => {
+      const g = incomeGroupMap[desc];
+      return {
+        description: desc,
+        count: g.count,
+        totalAmount: g.totalAmount,
+        cashAmount: g.cashAmount,
+        transferAmount: g.transferAmount,
+      };
+    });
+    sortedIncomeGroups.sort((a, b) => b.totalAmount - a.totalAmount);
+
+    // เรียงจัดกลุ่มรายจ่าย
+    const sortedExpenseGroups: GroupedExpense[] = Object.keys(expenseGroupMap).map((desc) => {
+      const g = expenseGroupMap[desc];
+      return {
+        description: desc,
+        count: g.count,
+        totalAmount: g.totalAmount,
+      };
+    });
+    sortedExpenseGroups.sort((a, b) => b.totalAmount - a.totalAmount);
+
+    return {
+      allIncomeItems: incomes,
+      allExpenseItems: expenses,
+      allOutLabItems: outLabs,
+      totalRangeIncome: sumIncome,
+      totalRangeIncomeCash: sumIncomeCash,
+      totalRangeIncomeTransfer: sumIncomeTransfer,
+      totalRangeGeneralExpense: sumGeneralExp,
+      totalRangeOutLab: sumOutLabExp,
+      sortedOutLabList: sortedOutLabs,
+      groupedIncomeList: sortedIncomeGroups,
+      groupedExpenseList: sortedExpenseGroups,
+    };
+  }, [datesInRange, records]);
 
   const totalRangeExpense = totalRangeGeneralExpense + totalRangeOutLab;
+  const netProfit = totalRangeIncome - totalRangeExpense;
 
-  // แปลง Out-Lab Groups เป็นลิสต์และจัดเรียง (Sorting จากจำนวนมากไปน้อย)
-  const sortedOutLabList: GroupedOutLab[] = Object.keys(outLabGroups).map((name) => {
-    const group = outLabGroups[name];
-    // คำนวณราราเฉลี่ยต่อหน่วย
-    const unitPrice = group.count > 0 ? group.totalAmount / group.count : 0;
-    return {
-      testName: name,
-      unitPrice,
-      count: group.count,
-      totalAmount: group.totalAmount,
-    };
-  });
-
-  // เรียงลำดับ: จำนวนมาก -> น้อย
-  sortedOutLabList.sort((a, b) => b.count - a.count);
-
-  // หาผลรวมตารางท้าย Out-Lab
+  // ผลรวมท้ายตาราง Out-Lab
   const totalOutLabCount = sortedOutLabList.reduce((sum, item) => sum + item.count, 0);
   const totalOutLabAmountSum = sortedOutLabList.reduce((sum, item) => sum + item.totalAmount, 0);
 
+  // ฟิลเตอร์ค้นหาในตาราง
+  const filteredIncomeItems = useMemo(() => {
+    if (!searchTerm.trim()) return allIncomeItems;
+    const term = searchTerm.toLowerCase();
+    return allIncomeItems.filter(
+      (item) =>
+        item.description.toLowerCase().includes(term) ||
+        item.date.includes(term) ||
+        (item.type === 'cash' ? 'เงินสด' : 'โอน').includes(term)
+    );
+  }, [allIncomeItems, searchTerm]);
+
+  const filteredExpenseItems = useMemo(() => {
+    if (!searchTerm.trim()) return allExpenseItems;
+    const term = searchTerm.toLowerCase();
+    return allExpenseItems.filter(
+      (item) =>
+        item.description.toLowerCase().includes(term) ||
+        item.date.includes(term)
+    );
+  }, [allExpenseItems, searchTerm]);
+
+  // ฟอร์แมตวันที่แบบไทยย่อ
+  const formatThaiDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
   // --- ข้อมูลสำหรับ Recharts กราฟ ---
-  const chartData = datesInRange.map((date) => {
-    const rec = records[date];
-    let inc = 0;
-    let expGeneral = 0;
-    let expLab = 0;
+  const chartData = useMemo(() => {
+    return datesInRange.map((date) => {
+      const rec = records[date];
+      let inc = 0;
+      let expGeneral = 0;
+      let expLab = 0;
 
-    if (rec) {
-      inc = (rec.incomeItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-      expGeneral = (rec.expenseItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-      if (rec.hasOutLab !== false) {
-        expLab = (rec.outLabItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      if (rec) {
+        inc = (rec.incomeItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        expGeneral = (rec.expenseItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        if (rec.hasOutLab !== false) {
+          expLab = (rec.outLabItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        }
       }
-    }
 
-    // ฟอร์แมตวันที่พองาม d/m
-    const parts = date.split('-');
-    const formattedDate = `${parts[2]}/${parts[1]}`;
+      const parts = date.split('-');
+      const formattedDate = `${parts[2]}/${parts[1]}`;
 
-    return {
-      dateLabel: formattedDate,
-      fullDate: date,
-      'รายรับ': inc,
-      'รายจ่าย': expGeneral + expLab,
-      'ทั่วไป': expGeneral,
-      'Out-Lab': expLab,
-    };
-  });
+      return {
+        dateLabel: formattedDate,
+        fullDate: date,
+        รายรับ: inc,
+        รายจ่าย: expGeneral + expLab,
+        ทั่วไป: expGeneral,
+        'Out-Lab': expLab,
+      };
+    });
+  }, [datesInRange, records]);
 
   // --- ส่งออก Excel ภาพรวมสะสม ---
   const handleExportExcel = () => {
-    const bizPrefix = selectedBiz === 'all' ? 'AllBiz' : (activeBizObj?.code || 'BIZ');
+    const bizPrefix = selectedBiz === 'all' ? 'AllBiz' : activeBizObj?.code || 'BIZ';
     const filename = `${bizPrefix}_SummaryReport_${startDate}_to_${endDate}.xlsx`;
 
-    // 1. หัวตาราง
-    const headerRow = [
-      ['สรุปผลรายงานภาพรวมบัญชีสะสม'],
-      [`บริษัท/ธุรกิจ: ${activeBizTitle}`],
-      [`ช่วงวันที่: ${startDate} ถึง ${endDate}`],
+    // 1. หัวตารางเอกสาร ระบุชื่อแล็บ/ธุรกิจชัดเจน
+    const headerRow: (string | number)[][] = [
+      ['รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม'],
+      [`ชื่อสถานพยาบาล / แล็บ (สมุดบัญชีธุรกิจ): ${activeBizTitle}`],
+      [`ช่วงวันที่: ${startDate} ถึง ${endDate} (รวม ${datesInRange.length} วัน)`],
       [],
     ];
 
-    // 2. สรุปภาพการเงิน
-    const metricsRow = [
-      ['ข้อมูลสรุปภาพรวมทางการเงิน'],
-      ['ตัวชี้วัดหลัก', 'ยอดเงินรวมสะสม (บาท)'],
-      ['รายรับรวมสะสม', totalRangeIncome],
+    // 2. สรุปภาพรวมการเงิน
+    const metricsRow: (string | number)[][] = [
+      ['ข้อมูลสรุปภาพรวมทางการเงินสะสม'],
+      ['ตัวชี้วัด', 'ยอดเงินรวมสะสม (บาท)'],
+      ['รายรับรวมสะสม (ทั้งหมด)', totalRangeIncome],
+      ['- รายรับเงินสดสะสม', totalRangeIncomeCash],
+      ['- รายรับเงินโอนสะสม', totalRangeIncomeTransfer],
       ['รายจ่ายทั่วไปรวมสะสม', totalRangeGeneralExpense],
-      ['รายจ่าย Out-Lab รวมสะสม', totalRangeOutLab],
+      ['รายจ่ายส่งแล็บนอก (Out-Lab) สะสม', totalRangeOutLab],
       ['ค่าใช้จ่ายรวมทั้งหมดสะสม', totalRangeExpense],
-      ['รายได้สุทธิสะสม (Net Profit)', totalRangeIncome - totalRangeExpense],
+      ['รายได้สุทธิสะสม (Net Profit)', netProfit],
       [],
     ];
 
-    // 3. ตารางแจกแจง Out-Lab
-    const outLabHeader = [
-      ['รายละเอียดรายการตรวจส่งแล็บนอก (Out-Lab) - เรียงลำดับจากใช้บริการบ่อยที่สุด'],
-      ['วิเคราะห์วิจัย / Test', 'ราคาเฉลี่ยต่อหน่วย (บาท)', 'จำนวนครั้งส่งตรวจ', 'รวมเงินสะสม (บาท)'],
-    ];
+    const dataSections: (string | number)[][] = [];
 
-    const outLabRows = sortedOutLabList.map((item) => [
-      item.testName,
-      item.unitPrice,
-      item.count,
-      item.totalAmount,
-    ]);
+    // 3. ตารางรายละเอียดรายได้ (ถ้าเลือกแสดง)
+    if (showIncomeDetails) {
+      dataSections.push(
+        ['[1] รายละเอียดรายการรายได้ (Income Details)'],
+        ['ลำดับ', 'วันที่', 'ชื่อรายการ', 'ช่องทางชำระเงิน', 'จำนวนเงิน (บาท)']
+      );
+      allIncomeItems.forEach((item, index) => {
+        dataSections.push([
+          index + 1,
+          item.date,
+          item.description,
+          item.type === 'cash' ? 'เงินสด' : 'เงินโอน',
+          item.amount,
+        ]);
+      });
+      dataSections.push(
+        ['รวมรายรับเงินสด', '', '', '', totalRangeIncomeCash],
+        ['รวมรายรับเงินโอน', '', '', '', totalRangeIncomeTransfer],
+        ['รวมรายรับทั้งหมด', '', '', '', totalRangeIncome],
+        []
+      );
+    }
 
-    const outLabFooter = [['รวมบริการส่งตรวจทั้งหมด', '', totalOutLabCount, totalOutLabAmountSum]];
+    // 4. ตารางรายละเอียดรายจ่าย (ถ้าเลือกแสดง)
+    if (showExpenseDetails) {
+      dataSections.push(
+        ['[2] รายละเอียดรายการรายจ่ายทั่วไป (General Expense Details)'],
+        ['ลำดับ', 'วันที่', 'ชื่อรายการรายจ่าย', 'จำนวนเงิน (บาท)']
+      );
+      allExpenseItems.forEach((item, index) => {
+        dataSections.push([
+          index + 1,
+          item.date,
+          item.description,
+          item.amount,
+        ]);
+      });
+      dataSections.push(
+        ['รวมรายจ่ายทั่วไปทั้งหมด', '', '', totalRangeGeneralExpense],
+        []
+      );
+    }
 
-    // รวมข้อมูล
-    const allAOA = [
-      ...headerRow,
-      ...metricsRow,
-      ...outLabHeader,
-      ...outLabRows,
-      ...outLabFooter,
-    ];
+    // 5. ตารางแจกแจง Out-Lab (ถ้าเลือกแสดง)
+    if (showOutLabDetails) {
+      dataSections.push(
+        ['[3] รายละเอียดรายการตรวจส่งแล็บนอก (Out-Lab Details)'],
+        ['รายการวิเคราะห์วิจัย / Test', 'ราคาเฉลี่ยต่อหน่วย (บาท)', 'จำนวนครั้งส่งตรวจ', 'รวมเงินสะสม (บาท)']
+      );
+      sortedOutLabList.forEach((item) => {
+        dataSections.push([
+          item.testName,
+          item.unitPrice,
+          item.count,
+          item.totalAmount,
+        ]);
+      });
+      dataSections.push(
+        ['รวมบริการส่งตรวจ Out-Lab ทั้งหมด', '', totalOutLabCount, totalOutLabAmountSum],
+        []
+      );
+    }
+
+    // รวมข้อมูลลงชีตเดียว
+    const allAOA = [...headerRow, ...metricsRow, ...dataSections];
 
     const worksheet = XLSX.utils.aoa_to_sheet(allAOA);
     const workbook = XLSX.utils.book_new();
@@ -344,204 +590,851 @@ export default function SummaryReportModule({
     window.print();
   };
 
+  // ตัวช่วยจัดการปิดตารางที่ว่างอัตโนมัติ
+  const handleHideEmptyTables = () => {
+    setShowIncomeDetails(allIncomeItems.length > 0);
+    setShowExpenseDetails(allExpenseItems.length > 0);
+    setShowOutLabDetails(sortedOutLabList.length > 0);
+  };
+
+  const handleSelectAllTables = () => {
+    setShowIncomeDetails(true);
+    setShowExpenseDetails(true);
+    setShowOutLabDetails(true);
+  };
+
   return (
     <div className="space-y-6" id="summary-report-module">
       {/* พาเนลควบคุมช่วงวันที่ และเลือกฟิลเตอร์ธุรกิจ */}
-      <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-150 flex flex-wrap gap-4 items-center justify-between print:hidden">
-        <div className="flex flex-wrap gap-4 items-center">
-          {/* ตัวเลือกฟิลเตอร์ธุรกิจ */}
-          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-            <Building2 size={16} className="text-blue-600 shrink-0" />
-            <span className="text-xs font-bold text-slate-700">ธุรกิจ / บริษัท:</span>
-            <select
-              value={selectedBiz}
-              onChange={(e) => setSelectedBiz(e.target.value)}
-              className="text-xs font-bold text-blue-700 bg-white border border-blue-200 focus:border-blue-500 outline-none rounded-lg px-2.5 py-1"
-            >
-              <option value="all">🏢 รวมทุกบริษัท/ธุรกิจ (Consolidated)</option>
-              {businesses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code || 'BIZ'})
-                </option>
-              ))}
-            </select>
+      <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-150 space-y-4 print:hidden">
+        <div className="flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex flex-wrap gap-4 items-center">
+            {/* ตัวเลือกฟิลเตอร์ธุรกิจ */}
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <Building2 size={16} className="text-blue-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-700">สมุดบัญชีธุรกิจ:</span>
+              <select
+                value={selectedBiz}
+                onChange={(e) => setSelectedBiz(e.target.value)}
+                className="text-xs font-bold text-blue-700 bg-white border border-blue-200 focus:border-blue-500 outline-none rounded-lg px-2.5 py-1 cursor-pointer"
+              >
+                <option value="all">🏢 รวมทุกบริษัท/ธุรกิจ (Consolidated)</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.code || 'BIZ'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* เลือกช่วงวันที่ */}
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <Calendar size={15} className="text-slate-500 shrink-0" />
+              <span className="text-xs font-semibold text-gray-500">ตั้งแต่</span>
+              <input
+                type="date"
+                id="summary-start-date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1 bg-white cursor-pointer"
+              />
+              <span className="text-xs font-semibold text-gray-500">ถึง</span>
+              <input
+                type="date"
+                id="summary-end-date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1 bg-white cursor-pointer"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">ตั้งแต่</span>
-            <input
-              type="date"
-              id="summary-start-date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 bg-gray-50/50"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">ถึง</span>
-            <input
-              type="date"
-              id="summary-end-date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 bg-gray-50/50"
-            />
+          <div className="flex gap-2">
+            {/* พิมพ์ PDF ภาพรวม */}
+            <button
+              onClick={handlePrintPDF}
+              id="btn-print-summary"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer"
+            >
+              <Printer size={15} />
+              <span>พิมพ์รายงาน (PDF)</span>
+            </button>
+
+            {/* ส่งออกภาพรวม Excel */}
+            <button
+              onClick={handleExportExcel}
+              id="btn-excel-summary"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer"
+            >
+              <FileSpreadsheet size={15} />
+              <span>ส่งออก Excel</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          {/* พิมพ์ PDF ภาพรวม */}
-          <button
-            onClick={handlePrintPDF}
-            id="btn-print-summary"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold text-xs transition-all shadow-xs"
-          >
-            <Printer size={14} />
-            <span>พิมพ์รายงานภาพรวม (PDF)</span>
-          </button>
+        {/* แถบตัวเลือกเปิด/ปิดการแสดงผลตาราง (Checkboxes for table display) */}
+        <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5 mr-1">
+              <Layers size={15} className="text-indigo-600" />
+              <span>เลือกตารางที่ต้องการแสดงในรายงาน:</span>
+            </span>
 
-          {/* ส่งออกภาพรวม Excel */}
-          <button
-            onClick={handleExportExcel}
-            id="btn-excel-summary"
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-xs"
-          >
-            <FileSpreadsheet size={14} />
-            <span>ส่งออก Excel ภาพรวม</span>
-          </button>
+            {/* Checkbox: รายละเอียดรายได้ */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showIncomeDetails
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showIncomeDetails}
+                onChange={(e) => setShowIncomeDetails(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                <Wallet size={13} className={showIncomeDetails ? 'text-emerald-600' : 'text-gray-400'} />
+                <span>รายละเอียดรายได้</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                allIncomeItems.length > 0
+                  ? 'bg-emerald-200/70 text-emerald-900 font-bold'
+                  : 'bg-gray-200 text-gray-600'
+              }`}>
+                {allIncomeItems.length} รายการ
+              </span>
+            </label>
+
+            {/* Checkbox: รายละเอียดรายจ่าย */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showExpenseDetails
+                ? 'bg-rose-50 border-rose-300 text-rose-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showExpenseDetails}
+                onChange={(e) => setShowExpenseDetails(e.target.checked)}
+                className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                <Receipt size={13} className={showExpenseDetails ? 'text-rose-600' : 'text-gray-400'} />
+                <span>รายละเอียดรายจ่าย</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                allExpenseItems.length > 0
+                  ? 'bg-rose-200/70 text-rose-900 font-bold'
+                  : 'bg-gray-200 text-gray-600'
+              }`}>
+                {allExpenseItems.length} รายการ
+              </span>
+            </label>
+
+            {/* Checkbox: รายละเอียดส่งแล็บนอก (Out-Lab) */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showOutLabDetails
+                ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showOutLabDetails}
+                onChange={(e) => setShowOutLabDetails(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                <FlaskConical size={13} className={showOutLabDetails ? 'text-amber-600' : 'text-gray-400'} />
+                <span>รายละเอียดส่งแล็บนอก (Out-Lab)</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                sortedOutLabList.length > 0
+                  ? 'bg-amber-200/70 text-amber-900 font-bold'
+                  : 'bg-gray-200 text-gray-600'
+              }`}>
+                {sortedOutLabList.length} ชนิด / {totalOutLabCount} ครั้ง
+              </span>
+            </label>
+          </div>
+
+          {/* ปุ่มตัวช่วยเร็ว */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleHideEmptyTables}
+              className="text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              title="ซ่อนตารางที่ไม่มีข้อมูลทันที เพื่อไม่ให้มีตารางว่าง"
+            >
+              ซ่อนตารางที่ว่าง
+            </button>
+            <button
+              type="button"
+              onClick={handleSelectAllTables}
+              className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+            >
+              เลือกแสดงทั้งหมด
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ใบรายงานทางการแพทย์สะสม */}
-      <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 space-y-8 print:border-0 print:shadow-none print:p-0">
-        {/* หัวแบรนด์เอกสาร */}
-        <div className="flex justify-between items-center pb-5 border-b border-gray-100">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
-              <span className="text-xl md:text-2xl font-black text-slate-900">Clinic Ledger</span>
+      {/* เอกสารรายงานสรุปสะสม (พิมพ์ / แสดงผล) */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-150 shadow-xs space-y-8 print:border-0 print:shadow-none print:p-0">
+        
+        {/* หัวกระดาษเอกสาร: แสดงชื่อแล็บ/ธุรกิจที่เลือกจากสมุดบัญชีธุรกิจอย่างโดดเด่น */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b-2 border-slate-800/10">
+          <div className="flex items-center gap-3.5">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${
+              selectedBiz === 'all'
+                ? 'bg-gradient-to-br from-indigo-600 to-purple-700'
+                : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+            }`}>
+              {selectedBiz === 'all' ? <Building2 size={24} /> : <HeartPulse size={24} />}
             </div>
-            <p className="text-xs text-gray-400 mt-1 uppercase font-bold tracking-wider">
-              Cumulative Comprehensive Performance & Out-Lab Audit Report
-            </p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                  {activeBizTitle}
+                </h1>
+                {activeBizObj?.code && (
+                  <span className="px-2 py-0.5 text-xs font-black bg-blue-100 text-blue-800 rounded-md uppercase">
+                    {activeBizObj.code}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5 uppercase tracking-wide">
+                รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม (Cumulative Financial Performance)
+              </p>
+              {activeBizObj?.description && (
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {activeBizObj.description}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="text-right text-xs">
-            <span className="text-gray-400 block font-semibold uppercase">สรุปช่วงวันที่สะสม</span>
-            <span className="font-bold text-gray-800">
-              {startDate} ถึง {endDate}
+
+          <div className="sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl w-full sm:w-auto border sm:border-0 border-slate-100">
+            <span className="text-[11px] text-slate-400 block font-bold uppercase tracking-wider">
+              ช่วงวันที่บันทึกสะสม
+            </span>
+            <span className="text-sm font-black text-slate-800 block">
+              {formatThaiDate(startDate)} — {formatThaiDate(endDate)}
+            </span>
+            <span className="text-[11px] text-blue-600 font-semibold block mt-0.5">
+              รวมทั้งสิ้น {datesInRange.length} วัน
             </span>
           </div>
         </div>
 
-        {/* ยอดไฮไลต์สะสม */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <span className="text-xs font-semibold text-gray-400 block mb-1">รายรับสะสมรวม</span>
-            <span className="text-xl font-black text-emerald-600">฿ {formatNumber(totalRangeIncome)}</span>
-            <span className="text-[10px] text-gray-405 block mt-1">จากบริการแล็บทั้งหมด</span>
+        {/* ยอดไฮไลต์สะสม 4 มิติทางการเงิน */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-emerald-100/30 border border-emerald-150">
+            <div className="flex items-center justify-between text-xs font-bold text-emerald-800 mb-1">
+              <span>รายรับสะสมรวม</span>
+              <TrendingUp size={16} className="text-emerald-600" />
+            </div>
+            <div className="text-2xl font-black text-emerald-700">
+              ฿{formatNumber(totalRangeIncome)}
+            </div>
+            <div className="text-[11px] text-emerald-700/80 mt-1 flex items-center justify-between font-medium">
+              <span>เงินสด: ฿{formatNumber(totalRangeIncomeCash)}</span>
+              <span>โอน: ฿{formatNumber(totalRangeIncomeTransfer)}</span>
+            </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <span className="text-xs font-semibold text-gray-400 block mb-1">รายจ่ายทั่วไปสะสม</span>
-            <span className="text-xl font-black text-rose-500">฿ {formatNumber(totalRangeGeneralExpense)}</span>
-            <span className="text-[10px] text-gray-405 block mt-1">ค่าน้ำ ยา เวชภัณฑ์ และอื่นๆ</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <span className="text-xs font-semibold text-gray-400 block mb-1">รายจ่าย Out-Lab รวม</span>
-            <span className="text-xl font-black text-amber-500">฿ {formatNumber(totalRangeOutLab)}</span>
-            <span className="text-[10px] text-gray-410 block mt-1">ส่งพาร์ทเนอร์แล็บนอก</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-emerald-55/40 border border-emerald-100 text-emerald-950">
-            <span className="text-xs font-semibold text-emerald-800 block mb-1">รายได้สุทธิสะสม</span>
-            <span className="text-xl font-black">฿ {formatNumber(totalRangeIncome - totalRangeExpense)}</span>
-            <span className="text-[10px] text-emerald-700 block mt-1">รวมรับหักประมวลผลจ่าย</span>
-          </div>
-        </div>
-
-        {/* ตารางแสดงภาพรวมส่งตรวจแล็บ (Out-Lab list) */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-            <h4 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-              <ListOrdered size={16} className="text-slate-500" />
-              <span>สรุปรายละเอียดส่งแล็บนอก (Sorted by quantity)</span>
-            </h4>
-            <span className="text-[10px] text-gray-400">
-              * เรียงลำดับจากรายการที่ส่งตรวจมากสุดไปหาน้อยที่สุด
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/70 to-rose-100/30 border border-rose-150">
+            <div className="flex items-center justify-between text-xs font-bold text-rose-800 mb-1">
+              <span>รายจ่ายทั่วไปสะสม</span>
+              <Receipt size={16} className="text-rose-500" />
+            </div>
+            <div className="text-2xl font-black text-rose-600">
+              ฿{formatNumber(totalRangeGeneralExpense)}
+            </div>
+            <span className="text-[11px] text-rose-700/80 block mt-1 font-medium">
+              ค่าน้ำ ยา เวชภัณฑ์ ({allExpenseItems.length} รายการ)
             </span>
           </div>
 
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-150">
-                  <th className="py-3 px-4">รายการวิเคราะห์โรค / Test</th>
-                  <th className="py-3 px-4 text-center">ราคาเฉลี่ยต่อหน่วย (บาท)</th>
-                  <th className="py-3 px-4 text-center">จำนวนที่ส่ง (ครั้ง)</th>
-                  <th className="py-3 px-4 text-right">ยอดเงินรวมพิกัด (บาท)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                {sortedOutLabList.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-gray-400">
-                      ไม่พบประวัติส่งแล็บนอกในช่วงวันที่เลือก
-                    </td>
-                  </tr>
-                ) : (
-                  sortedOutLabList.map((item, index) => (
-                    <tr key={index} className="hover:bg-slate-50/50">
-                      <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        <span>{item.testName}</span>
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-amber-100/30 border border-amber-150">
+            <div className="flex items-center justify-between text-xs font-bold text-amber-800 mb-1">
+              <span>รายจ่าย Out-Lab สะสม</span>
+              <FlaskConical size={16} className="text-amber-500" />
+            </div>
+            <div className="text-2xl font-black text-amber-600">
+              ฿{formatNumber(totalRangeOutLab)}
+            </div>
+            <span className="text-[11px] text-amber-700/80 block mt-1 font-medium">
+              ส่งแล็บนอก {totalOutLabCount} ครั้ง ({sortedOutLabList.length} รายการตรวจ)
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xs">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
+              <span>รายได้สุทธิสะสม (Net Profit)</span>
+              <Wallet size={16} className="text-emerald-400" />
+            </div>
+            <div className={`text-2xl font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              ฿{formatNumber(netProfit)}
+            </div>
+            <span className="text-[11px] text-slate-400 block mt-1 font-medium">
+              รายรับหักลบรายจ่ายทั้งหมด (฿{formatNumber(totalRangeExpense)})
+            </span>
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* [1] ส่วนตารางรายละเอียดรายได้ (Income Details Table) */}
+        {/* ============================================================== */}
+        {showIncomeDetails && (
+          <div className="space-y-3 pt-2" id="income-details-section">
+            <div className="flex flex-wrap justify-between items-center pb-2 border-b border-gray-150 gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <Wallet size={14} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm md:text-base text-slate-900">
+                    สรุปรายละเอียดรายได้ (Income Details)
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    ชื่อรายการ ช่องทางการชำระ (เงินสดหรือโอน) และจำนวนเงิน
+                  </p>
+                </div>
+              </div>
+
+              {/* ยอดสรุปย่อย & ปุ่มสลับโหมด */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    💵 เงินสด: ฿{formatNumber(totalRangeIncomeCash)}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 font-bold border border-blue-200">
+                    📱 โอน: ฿{formatNumber(totalRangeIncomeTransfer)}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-black border border-slate-200">
+                    รวม: ฿{formatNumber(totalRangeIncome)}
+                  </span>
+                </div>
+
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIncomeViewMode('itemized')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      incomeViewMode === 'itemized'
+                        ? 'bg-white text-emerald-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    รายวัน ({filteredIncomeItems.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIncomeViewMode('grouped')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      incomeViewMode === 'grouped'
+                        ? 'bg-white text-emerald-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    สรุปตามชื่อรายการ ({groupedIncomeList.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ตัวตารางรายได้ */}
+            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs bg-white">
+              {incomeViewMode === 'itemized' ? (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-emerald-50/80 text-emerald-950 font-bold border-b border-emerald-200">
+                      <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
+                      <th className="py-2.5 px-3 w-28">วันที่</th>
+                      <th className="py-2.5 px-4">ชื่อรายการรายได้</th>
+                      <th className="py-2.5 px-3 text-center w-32">เงินสดหรือโอน</th>
+                      <th className="py-2.5 px-4 text-right w-36">จำนวนเงิน (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {filteredIncomeItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-gray-400">
+                          ไม่พบรายการรายได้ในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredIncomeItems.map((item, index) => (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-3 text-center text-gray-400 font-mono text-[11px]">
+                            {index + 1}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
+                            {formatThaiDate(item.date)}
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-900">
+                            {item.description}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {item.type === 'cash' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                💵 เงินสด
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                📱 โอนเงิน
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                            ฿{formatNumber(item.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50/60 font-black text-slate-900 border-t-2 border-emerald-200">
+                      <td colSpan={3} className="py-3 px-4 text-right">
+                        สรุปผลรวมรายได้ ({filteredIncomeItems.length} รายการ):
                       </td>
-                      <td className="py-3 px-4 text-center font-mono text-gray-500">
-                        ฿{formatNumber(item.unitPrice)}
+                      <td className="py-3 px-3 text-center text-[11px] text-slate-600">
+                        สด: ฿{formatNumber(totalRangeIncomeCash)} | โอน: ฿{formatNumber(totalRangeIncomeTransfer)}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full">
-                          {item.count}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">
-                        ฿{formatNumber(item.totalAmount)}
+                      <td className="py-3 px-4 text-right font-mono text-emerald-800 text-sm">
+                        ฿{formatNumber(totalRangeIncome)}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50/80 font-black text-xs text-slate-800 border-t border-gray-200">
-                  <td colSpan={2} className="py-3 px-4 text-right">
-                    สรุปผลรวมแล็บนอก:
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="text-amber-800 font-extrabold">{totalOutLabCount} ครั้ง</span>
-                  </td>
-                  <td className="py-3 px-4 text-right text-amber-800 font-mono">
-                    ฿{formatNumber(totalOutLabAmountSum)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  </tfoot>
+                </table>
+              ) : (
+                /* โหมดสรุปตามชื่อรายการรายได้ (Grouped by Description) */
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-emerald-50/80 text-emerald-950 font-bold border-b border-emerald-200">
+                      <th className="py-2.5 px-4">ชื่อรายการรายได้</th>
+                      <th className="py-2.5 px-3 text-center">จำนวนครั้ง</th>
+                      <th className="py-2.5 px-4 text-right">ยอดเงินสด</th>
+                      <th className="py-2.5 px-4 text-right">ยอดเงินโอน</th>
+                      <th className="py-2.5 px-4 text-right">ยอดรวม (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {groupedIncomeList.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-gray-400">
+                          ไม่พบรายการรายได้ในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      groupedIncomeList.map((item, index) => (
+                        <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>{item.description}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full text-[11px]">
+                              {item.count}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-emerald-700">
+                            ฿{formatNumber(item.cashAmount)}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-blue-700">
+                            ฿{formatNumber(item.transferAmount)}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-800">
+                            ฿{formatNumber(item.totalAmount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50/60 font-black text-slate-900 border-t-2 border-emerald-200">
+                      <td className="py-3 px-4 text-right">สรุปผลรวมรายได้ทั้งหมด:</td>
+                      <td className="py-3 px-3 text-center font-bold text-slate-700">
+                        {allIncomeItems.length} ครั้ง
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-emerald-700">
+                        ฿{formatNumber(totalRangeIncomeCash)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-blue-700">
+                        ฿{formatNumber(totalRangeIncomeTransfer)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-emerald-800 text-sm">
+                        ฿{formatNumber(totalRangeIncome)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* [2] ส่วนตารางรายละเอียดรายจ่ายทั่วไป (Expense Details Table) */}
+        {/* ============================================================== */}
+        {showExpenseDetails && (
+          <div className="space-y-3 pt-2" id="expense-details-section">
+            <div className="flex flex-wrap justify-between items-center pb-2 border-b border-gray-150 gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                  <Receipt size={14} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm md:text-base text-slate-900">
+                    สรุปรายละเอียดรายจ่ายทั่วไป (General Expense Details)
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    ชื่อรายการค่าใช้จ่าย และจำนวนเงิน
+                  </p>
+                </div>
+              </div>
+
+              {/* ยอดสรุปย่อย & ปุ่มสลับโหมด */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-lg bg-rose-50 text-rose-800 font-black border border-rose-200 text-xs">
+                  รวมรายจ่ายทั่วไป: ฿{formatNumber(totalRangeGeneralExpense)}
+                </span>
+
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setExpenseViewMode('itemized')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      expenseViewMode === 'itemized'
+                        ? 'bg-white text-rose-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    รายวัน ({filteredExpenseItems.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpenseViewMode('grouped')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      expenseViewMode === 'grouped'
+                        ? 'bg-white text-rose-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    สรุปตามชื่อรายการ ({groupedExpenseList.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ตัวตารางรายจ่าย */}
+            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs bg-white">
+              {expenseViewMode === 'itemized' ? (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-rose-50/80 text-rose-950 font-bold border-b border-rose-200">
+                      <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
+                      <th className="py-2.5 px-3 w-28">วันที่</th>
+                      <th className="py-2.5 px-4">ชื่อรายการรายจ่าย</th>
+                      <th className="py-2.5 px-4 text-right w-40">จำนวนเงิน (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {filteredExpenseItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-gray-400">
+                          ไม่พบรายการรายจ่ายทั่วไปในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredExpenseItems.map((item, index) => (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-3 text-center text-gray-400 font-mono text-[11px]">
+                            {index + 1}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
+                            {formatThaiDate(item.date)}
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-900">
+                            {item.description}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
+                            ฿{formatNumber(item.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-rose-50/60 font-black text-slate-900 border-t-2 border-rose-200">
+                      <td colSpan={3} className="py-3 px-4 text-right">
+                        สรุปผลรวมรายจ่ายทั่วไป ({filteredExpenseItems.length} รายการ):
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-rose-700 text-sm">
+                        ฿{formatNumber(totalRangeGeneralExpense)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                /* โหมดสรุปตามชื่อรายการรายจ่าย (Grouped by Description) */
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-rose-50/80 text-rose-950 font-bold border-b border-rose-200">
+                      <th className="py-2.5 px-4">ชื่อรายการรายจ่าย</th>
+                      <th className="py-2.5 px-3 text-center">จำนวนครั้ง</th>
+                      <th className="py-2.5 px-4 text-right">ราคาเฉลี่ยต่อครั้ง</th>
+                      <th className="py-2.5 px-4 text-right">ยอดรวม (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {groupedExpenseList.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-gray-400">
+                          ไม่พบรายการรายจ่ายทั่วไปในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      groupedExpenseList.map((item, index) => (
+                        <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>{item.description}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full text-[11px]">
+                              {item.count}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-slate-500">
+                            ฿{formatNumber(item.count > 0 ? item.totalAmount / item.count : 0)}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-700">
+                            ฿{formatNumber(item.totalAmount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-rose-50/60 font-black text-slate-900 border-t-2 border-rose-200">
+                      <td className="py-3 px-4 text-right">สรุปผลรวมรายจ่ายทั่วไป:</td>
+                      <td className="py-3 px-3 text-center font-bold text-slate-700">
+                        {allExpenseItems.length} ครั้ง
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-500">-</td>
+                      <td className="py-3 px-4 text-right font-mono text-rose-700 text-sm">
+                        ฿{formatNumber(totalRangeGeneralExpense)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* [3] ส่วนตารางรายละเอียดส่งแล็บนอก (Out-Lab Details Table) */}
+        {/* ============================================================== */}
+        {showOutLabDetails && (
+          <div className="space-y-3 pt-2" id="outlab-details-section">
+            <div className="flex flex-wrap justify-between items-center pb-2 border-b border-gray-150 gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                  <FlaskConical size={14} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm md:text-base text-slate-900">
+                    สรุปรายละเอียดส่งแล็บนอก (Out-Lab Details)
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    จำแนกตามรายการตรวจวิเคราะห์โรค เรียงลำดับจากส่งตรวจบ่อยที่สุด
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-lg bg-amber-50 text-amber-800 font-black border border-amber-200 text-xs">
+                  รวม Out-Lab: ฿{formatNumber(totalRangeOutLab)} ({totalOutLabCount} ครั้ง)
+                </span>
+
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOutLabViewMode('grouped')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      outLabViewMode === 'grouped'
+                        ? 'bg-white text-amber-800 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    สรุปตามรายการตรวจ ({sortedOutLabList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOutLabViewMode('itemized')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      outLabViewMode === 'itemized'
+                        ? 'bg-white text-amber-800 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    รายวัน LN ({allOutLabItems.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ตัวตาราง Out-Lab */}
+            <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs bg-white">
+              {outLabViewMode === 'grouped' ? (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-amber-50/80 text-amber-950 font-bold border-b border-amber-200">
+                      <th className="py-2.5 px-4">รายการวิเคราะห์โรค / Test</th>
+                      <th className="py-2.5 px-4 text-center">ราคาเฉลี่ยต่อหน่วย (บาท)</th>
+                      <th className="py-2.5 px-4 text-center">จำนวนที่ส่ง (ครั้ง)</th>
+                      <th className="py-2.5 px-4 text-right">ยอดเงินรวมพิกัด (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {sortedOutLabList.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-gray-400">
+                          ไม่พบประวัติส่งแล็บนอกในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedOutLabList.map((item, index) => (
+                        <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span>{item.testName}</span>
+                          </td>
+                          <td className="py-2.5 px-4 text-center font-mono text-gray-500">
+                            ฿{formatNumber(item.unitPrice)}
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <span className="inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full">
+                              {item.count}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-700">
+                            ฿{formatNumber(item.totalAmount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-amber-50/60 font-black text-slate-900 border-t-2 border-amber-200">
+                      <td colSpan={2} className="py-3 px-4 text-right">
+                        สรุปผลรวมส่งแล็บนอกทั้งหมด:
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-amber-800 font-extrabold">{totalOutLabCount} ครั้ง</span>
+                      </td>
+                      <td className="py-3 px-4 text-right text-amber-800 font-mono text-sm">
+                        ฿{formatNumber(totalOutLabAmountSum)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                /* โหมดรายวัน LN (Itemized) */
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-amber-50/80 text-amber-950 font-bold border-b border-amber-200">
+                      <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
+                      <th className="py-2.5 px-3 w-28">วันที่</th>
+                      <th className="py-2.5 px-3 w-28">LN (เลขแล็บ)</th>
+                      <th className="py-2.5 px-4">ชื่อรายการวิเคราะห์ / Test</th>
+                      <th className="py-2.5 px-4 text-right w-36">จำนวนเงิน (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-slate-700">
+                    {allOutLabItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-gray-400">
+                          ไม่พบประวัติส่งแล็บนอกในช่วงวันที่เลือก
+                        </td>
+                      </tr>
+                    ) : (
+                      allOutLabItems.map((item, index) => (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-2.5 px-3 text-center text-gray-400 font-mono text-[11px]">
+                            {index + 1}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
+                            {formatThaiDate(item.date)}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-amber-800">
+                            {item.labNumber}
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-900">
+                            {item.testName}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-amber-700 whitespace-nowrap">
+                            ฿{formatNumber(item.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-amber-50/60 font-black text-slate-900 border-t-2 border-amber-200">
+                      <td colSpan={4} className="py-3 px-4 text-right">
+                        สรุปผลรวมรายการส่งแล็บ ({allOutLabItems.length} รายการ):
+                      </td>
+                      <td className="py-3 px-4 text-right text-amber-800 font-mono text-sm">
+                        ฿{formatNumber(totalRangeOutLab)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* กรณีผู้ใช้ติ๊กปิดทุกตาราง */}
+        {!showIncomeDetails && !showExpenseDetails && !showOutLabDetails && (
+          <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 space-y-2">
+            <p className="text-sm font-bold text-slate-600">
+              ทุกตารางรายละเอียดถูกซ่อนอยู่ตามที่คุณเลือก
+            </p>
+            <p className="text-xs text-gray-400">
+              สามารถติ๊กเครื่องหมายถูกที่แถบด้านบน เพื่อเลือกแสดงรายละเอียดรายได้, รายจ่าย, หรือ Out-Lab ได้ทันที
+            </p>
+            <button
+              type="button"
+              onClick={handleSelectAllTables}
+              className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+            >
+              แสดงตารางทั้งหมดอีกครั้ง
+            </button>
+          </div>
+        )}
 
         {/* แดชบอร์ดกราฟแสดงข้อมูลพฤติกรรม (Chart UI) */}
         {datesInRange.length > 0 && (
           <div className="space-y-6 pt-4 print:hidden" id="financial-charts-block">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-150">
               <BarChart3 size={16} className="text-blue-500" />
-              <h4 className="font-bold text-sm text-slate-800">
-                กราฟพฤติกรรมการเงินรายวัน (Financial Charts)
+              <h4 className="font-extrabold text-sm text-slate-800">
+                กราฟพฤติกรรมการเงินรายวัน (Daily Financial Trends)
               </h4>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* (1) กราฟรายรับ */}
-              <div className="bg-white p-4 border border-gray-100 rounded-2xl shadow-2xs space-y-3">
-                <span className="text-xs font-bold text-gray-500 block">กราฟรายรับรายวัน</span>
+              <div className="bg-white p-4 border border-gray-150 rounded-2xl shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700">กราฟรายรับรายวัน</span>
+                  <span className="text-[11px] font-mono text-emerald-600 font-bold">
+                    รวม ฿{formatNumber(totalRangeIncome)}
+                  </span>
+                </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
@@ -572,8 +1465,13 @@ export default function SummaryReportModule({
               </div>
 
               {/* (2) กราฟรายจ่าย */}
-              <div className="bg-white p-4 border border-gray-100 rounded-2xl shadow-2xs space-y-3">
-                <span className="text-xs font-bold text-gray-500 block">กราฟรายจ่ายรายวัน (ทั่วไป + Out-Lab)</span>
+              <div className="bg-white p-4 border border-gray-150 rounded-2xl shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700">กราฟรายจ่ายรายวัน (ทั่วไป + Out-Lab)</span>
+                  <span className="text-[11px] font-mono text-rose-600 font-bold">
+                    รวม ฿{formatNumber(totalRangeExpense)}
+                  </span>
+                </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
