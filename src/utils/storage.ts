@@ -4,7 +4,7 @@
  */
 
 import { DailyRecord, LabTestTemplate, Business } from '../types';
-import { DEFAULT_LAB_TESTS, DEFAULT_BUSINESSES } from '../constants';
+import { DEFAULT_LAB_TESTS, DEFAULT_BUSINESSES, isLastDayOfMonth } from '../constants';
 import { saveRecordToFirebase, saveLabTestsToFirebase, saveBusinessesToFirebase } from './firebase';
 
 const RECORDS_KEY = 'bklabplus_records';
@@ -100,17 +100,79 @@ export async function syncRecordsWithServer(): Promise<Record<string, DailyRecor
   return null;
 }
 
-export function loadDailyRecord(date: string, businessId?: string): DailyRecord {
-  const records = loadAllRecords(businessId);
-  if (records[date]) {
-    return records[date];
+export function deduplicateExpenseItems(items: any[]): any[] {
+  if (!items || items.length <= 1) return items || [];
+  const map = new Map<string, any>();
+  for (const item of items) {
+    const descKey = (item.description || '').trim().toLowerCase();
+    if (!descKey) {
+      map.set(item.id || Math.random().toString(), item);
+      continue;
+    }
+    if (!map.has(descKey)) {
+      map.set(descKey, item);
+    } else {
+      const existing = map.get(descKey)!;
+      if ((!existing.amount || existing.amount === 0) && item.amount && item.amount > 0) {
+        map.set(descKey, item);
+      }
+    }
   }
-  // ถ้ายังไม่มี ให้สร้างค่าเริ่มต้นของวันนั้นๆ
+  return Array.from(map.values());
+}
+
+export function loadDailyRecord(date: string, businessId?: string): DailyRecord {
+  const targetBizId = businessId || 'clinic-main';
+  const records = loadAllRecords(targetBizId);
+  const businesses = loadBusinesses();
+  const currentBiz = businesses.find((b) => b.id === targetBizId) || businesses[0];
+  const fixCosts = currentBiz?.fixCosts || [];
+
+  if (records[date]) {
+    const existing = records[date];
+    const cleanedExpenses = deduplicateExpenseItems(existing.expenseItems || []);
+
+    // ถ้าเป็นวันสิ้นเดือน และมี fix costs ที่ยังไม่เคยลงใน record ให้เติมเพิ่มไว้รอ (ไม่มีรายการซ้ำเด็ดขาด)
+    if (isLastDayOfMonth(date) && fixCosts.length > 0) {
+      const existingNames = new Set(
+        cleanedExpenses.map((item) => (item.description || '').trim().toLowerCase())
+      );
+      const missing = fixCosts.filter((fc) => !existingNames.has(fc.name.trim().toLowerCase()));
+      if (missing.length > 0) {
+        const injected = missing.map((fc, idx) => ({
+          id: `fix-${fc.id || Date.now()}-${idx}`,
+          description: fc.name,
+          amount: fc.amount || 0,
+        }));
+        return {
+          ...existing,
+          expenseItems: deduplicateExpenseItems([...cleanedExpenses, ...injected]),
+        };
+      }
+    }
+    return {
+      ...existing,
+      expenseItems: cleanedExpenses,
+    };
+  }
+
+  // ถ้ายังไม่มี และเป็นวันสิ้นเดือน ให้ใส่ fix costs ไว้รอเลย
+  const initialExpenseItems =
+    isLastDayOfMonth(date) && fixCosts.length > 0
+      ? deduplicateExpenseItems(
+          fixCosts.map((fc, idx) => ({
+            id: `fix-${fc.id || Date.now()}-${idx}`,
+            description: fc.name,
+            amount: fc.amount || 0,
+          }))
+        )
+      : [];
+
   return {
     date,
-    businessId: businessId || 'clinic-main',
+    businessId: targetBizId,
     incomeItems: [],
-    expenseItems: [],
+    expenseItems: initialExpenseItems,
     outLabItems: [],
     hasOutLab: true,
     cashCheck: {

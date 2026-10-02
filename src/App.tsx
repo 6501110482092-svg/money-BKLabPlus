@@ -65,7 +65,7 @@ type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('income');
-  const [currentDate, setCurrentDate] = useState<string>('');
+  const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateString());
   
   // รัฐระบบแยกบริษัท/ธุรกิจ (Multi-Business System)
   const [businesses, setBusinesses] = useState<Business[]>(() => loadBusinesses());
@@ -639,69 +639,62 @@ export default function App() {
 
         {/* แผ่นเนื้อหารายละเอียดแต่ละโมดูล */}
         <div className="min-h-[500px]" id="tab-content-portal">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab + currentDate + activeBusinessId}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.15 }}
-            >
-              {activeTab === 'income' && (
-                <IncomeModule
-                  currentDate={currentDate}
-                  onDateChange={handleDateChange}
-                  record={currentRecord}
-                  onSaveRecord={handleSaveRecord}
-                />
-              )}
+          {activeTab === 'income' && (
+            <IncomeModule
+              currentDate={currentDate}
+              onDateChange={handleDateChange}
+              record={currentRecord}
+              onSaveRecord={handleSaveRecord}
+            />
+          )}
 
-              {activeTab === 'expense' && (
-                <ExpenseModule
-                  currentDate={currentDate}
-                  onDateChange={handleDateChange}
-                  record={currentRecord}
-                  onSaveRecord={handleSaveRecord}
-                />
-              )}
+          {activeTab === 'expense' && (
+            <ExpenseModule
+              currentDate={currentDate}
+              onDateChange={handleDateChange}
+              record={currentRecord}
+              onSaveRecord={handleSaveRecord}
+              activeBusinessId={activeBusinessId}
+              activeBusiness={activeBusiness}
+              businesses={businesses}
+            />
+          )}
 
-              {activeTab === 'profit' && (
-                <ProfitModule
-                  currentDate={currentDate}
-                  onDateChange={handleDateChange}
-                  record={currentRecord}
-                  onSaveRecord={handleSaveRecord}
-                />
-              )}
+          {activeTab === 'profit' && (
+            <ProfitModule
+              currentDate={currentDate}
+              onDateChange={handleDateChange}
+              record={currentRecord}
+              onSaveRecord={handleSaveRecord}
+            />
+          )}
 
-              {activeTab === 'daily' && (
-                <DailyReportModule
-                  currentDate={currentDate}
-                  onDateChange={handleDateChange}
-                  record={currentRecord}
-                  businessName={activeBusiness.name}
-                  businessCode={activeBusiness.code}
-                />
-              )}
+          {activeTab === 'daily' && (
+            <DailyReportModule
+              currentDate={currentDate}
+              onDateChange={handleDateChange}
+              record={currentRecord}
+              businessName={activeBusiness.name}
+              businessCode={activeBusiness.code}
+            />
+          )}
 
-              {activeTab === 'summary' && (
-                <SummaryReportModule
-                  currentDate={currentDate}
-                  activeBusinessId={activeBusinessId}
-                  businesses={businesses}
-                />
-              )}
+          {activeTab === 'summary' && (
+            <SummaryReportModule
+              currentDate={currentDate}
+              activeBusinessId={activeBusinessId}
+              businesses={businesses}
+            />
+          )}
 
-              {activeTab === 'settings' && (
-                <ManageTestsModule
-                  businesses={businesses}
-                  activeBusinessId={activeBusinessId}
-                  onSelectBusiness={handleSelectBusiness}
-                  onBusinessesChange={(newList) => setBusinesses(newList)}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
+          {activeTab === 'settings' && (
+            <ManageTestsModule
+              businesses={businesses}
+              activeBusinessId={activeBusinessId}
+              onSelectBusiness={handleSelectBusiness}
+              onBusinessesChange={(newList) => setBusinesses(newList)}
+            />
+          )}
         </div>
       </main>
 

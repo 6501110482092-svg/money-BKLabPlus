@@ -40,6 +40,13 @@ export interface DailyRecord {
   updatedAt?: string; // วันที่เวลาอัปเดตล่าสุดสำหรับการซิงค์เรียลไทม์
 }
 
+export interface FixCostItem {
+  id: string;
+  name: string; // ชื่อรายการ เช่น ค่าเช่าคลินิก, ค่าไฟฟ้า, ค่าอินเทอร์เน็ต, เงินเดือนพนักงาน
+  amount?: number; // จำนวนเงิน หากไม่ระบุ หรือ 0 หมายถึงยอดผันแปร เช่น ค่าไฟ ให้ผู้ใช้ไปกรอกทีหลัง
+  note?: string; // หมายเหตุเพิ่มเติม
+}
+
 export interface Business {
   id: string;
   name: string;
@@ -48,6 +55,7 @@ export interface Business {
   color?: string; // 'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'indigo' | 'cyan'
   isDefault?: boolean;
   createdAt?: string;
+  fixCosts?: FixCostItem[]; // รายการค่าใช้จ่ายประจำเดือน (Fix Costs)
 }
 
 export interface LabTestTemplate {

@@ -27,20 +27,25 @@ export default function ProfitModule({
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // คำนวณยอดเงินเบื้องต้น
-  const cashIncome = record.incomeItems
+  // คำนวณยอดเงินเบื้องต้นอย่างปลอดภัย
+  const incomeItems = record?.incomeItems || [];
+  const expenseItems = record?.expenseItems || [];
+  const outLabItems = record?.outLabItems || [];
+  const hasOutLab = record?.hasOutLab !== false;
+
+  const cashIncome = incomeItems
     .filter((item) => item.type === 'cash')
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-  const transferIncome = record.incomeItems
+  const transferIncome = incomeItems
     .filter((item) => item.type === 'transfer')
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
   const totalIncome = cashIncome + transferIncome;
 
-  const generalExpense = record.expenseItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const outLabExpense = record.hasOutLab !== false
-    ? record.outLabItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+  const generalExpense = expenseItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const outLabExpense = hasOutLab
+    ? outLabItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
     : 0;
 
   const totalExpense = generalExpense + outLabExpense;

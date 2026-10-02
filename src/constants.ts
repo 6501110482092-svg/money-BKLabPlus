@@ -15,6 +15,12 @@ export const DEFAULT_BUSINESSES: Business[] = [
     description: 'บันทึกตรวจโรค ตรวจสุขภาพทั่วไป ค่ายาและการรักษา',
     color: 'emerald',
     isDefault: true,
+    fixCosts: [
+      { id: 'fix-1', name: 'ค่าเช่าสถานที่ / คลินิก', amount: 15000 },
+      { id: 'fix-2', name: 'ค่าไฟฟ้า (ผันแปร)', amount: 0 },
+      { id: 'fix-3', name: 'ค่าน้ำประปา', amount: 350 },
+      { id: 'fix-4', name: 'ค่าอินเทอร์เน็ตคลินิก', amount: 799 },
+    ],
   },
   {
     id: 'lab-medical',
@@ -22,6 +28,11 @@ export const DEFAULT_BUSINESSES: Business[] = [
     code: 'LAB',
     description: 'วิเคราะห์โลหิตวิทยา เคมีคลินิก และแล็บส่งนอก (Out-Lab)',
     color: 'blue',
+    fixCosts: [
+      { id: 'fix-lab-1', name: 'ค่าบำรุงรักษาเครื่องตรวจวิเคราะห์', amount: 5000 },
+      { id: 'fix-lab-2', name: 'ค่าไฟฟ้าห้องแล็บ (ผันแปร)', amount: 0 },
+      { id: 'fix-lab-3', name: 'ค่าซอฟต์แวร์ระบบ LIS / รายเดือน', amount: 1200 },
+    ],
   },
   {
     id: 'company-sub',
@@ -29,6 +40,10 @@ export const DEFAULT_BUSINESSES: Business[] = [
     code: 'BR2',
     description: 'สาขาบริการเสริมและตรวจสุขภาพเคลื่อนที่',
     color: 'purple',
+    fixCosts: [
+      { id: 'fix-sub-1', name: 'ค่าเช่าสถานที่สาขา 2', amount: 8000 },
+      { id: 'fix-sub-2', name: 'ค่าไฟฟ้าสาขา (ผันแปร)', amount: 0 },
+    ],
   },
 ];
 
@@ -120,4 +135,26 @@ export function formatNumberNoDec(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
+}
+
+/**
+ * คำนวณวันสุดท้ายของเดือนในรูปแบบ YYYY-MM-DD
+ */
+export function getLastDayOfMonth(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length < 2) return dateStr;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10); // 1-12
+  // วันที่ 0 ของเดือนถัดไป คือวันสุดท้ายของเดือนปัจจุบัน
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${parts[0]}-${parts[1]}-${String(lastDay).padStart(2, '0')}`;
+}
+
+/**
+ * ตรวจสอบว่าวันที่ที่ส่งเข้ามาเป็นวันสุดท้ายของเดือนหรือไม่
+ */
+export function isLastDayOfMonth(dateStr: string): boolean {
+  if (!dateStr) return false;
+  return dateStr === getLastDayOfMonth(dateStr);
 }

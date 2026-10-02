@@ -24,10 +24,10 @@ export default function DailyReportModule({
   businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
   businessCode = 'CLN',
 }: DailyReportModuleProps) {
-  const incomeItems = record.incomeItems || [];
-  const expenseItems = record.expenseItems || [];
-  const outLabItems = record.outLabItems || [];
-  const hasOutLab = record.hasOutLab !== false;
+  const incomeItems = record?.incomeItems || [];
+  const expenseItems = record?.expenseItems || [];
+  const outLabItems = record?.outLabItems || [];
+  const hasOutLab = record?.hasOutLab !== false;
 
   // แบ่งฝั่งรายรับ
   const cashIncome = incomeItems
