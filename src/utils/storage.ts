@@ -22,7 +22,14 @@ export function loadBusinesses(): Business[] {
     }
     const parsed = JSON.parse(data);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      // ล้างข้อมูลดัมมี่ Fix Costs อัตโนมัติ (เช่น fix-lab-1, fix-1) ถ้าผู้ใช้ไม่ได้ตั้งใจเพิ่มเอง
+      const cleaned = parsed.map((b: Business) => {
+        const fc = (b.fixCosts || []).filter(
+          (item) => !item.id.startsWith('fix-') || item.id.startsWith('fix-user-')
+        );
+        return { ...b, fixCosts: fc };
+      });
+      return cleaned;
     }
     return DEFAULT_BUSINESSES;
   } catch (error) {
@@ -73,9 +80,34 @@ export function getApiUrl(endpoint: string): string {
 
 export function loadAllRecords(businessId?: string): Record<string, DailyRecord> {
   try {
-    const key = businessId ? `${RECORDS_KEY}_${businessId}` : RECORDS_KEY;
+    const targetBizId = businessId || 'clinic-main';
+    const key = `${RECORDS_KEY}_${targetBizId}`;
     const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : {};
+    let parsed: Record<string, DailyRecord> = data ? JSON.parse(data) : {};
+
+    // ตรวจสอบและดึงข้อมูลเดิม (Legacy records) เผื่อไว้เสมอ เพื่อไม่ให้ข้อมูลหายเวลาสลับธุรกิจไปมา
+    const legacyData = localStorage.getItem(RECORDS_KEY);
+    if (legacyData) {
+      try {
+        const legacyParsed = JSON.parse(legacyData);
+        if (legacyParsed && typeof legacyParsed === 'object') {
+          // ดึงเฉพาะข้อมูลของธุรกิจนั้น หรือถ้าเป็น clinic-main ให้ดึงข้อมูลทั้งหมดที่ไม่มี businessId ระบุชัดเจน
+          Object.keys(legacyParsed).forEach((d) => {
+            const rec = legacyParsed[d];
+            if (rec) {
+              const recBizId = rec.businessId || 'clinic-main';
+              if (recBizId === targetBizId && !parsed[d]) {
+                parsed[d] = { ...rec, businessId: targetBizId };
+              }
+            }
+          });
+        }
+      } catch (err) {
+        // ignore legacy parse error
+      }
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Error loading records', error);
     return {};
@@ -84,10 +116,34 @@ export function loadAllRecords(businessId?: string): Record<string, DailyRecord>
 
 export function saveAllRecords(records: Record<string, DailyRecord>, businessId?: string) {
   try {
-    const key = businessId ? `${RECORDS_KEY}_${businessId}` : RECORDS_KEY;
+    const targetBizId = businessId || 'clinic-main';
+    const key = `${RECORDS_KEY}_${targetBizId}`;
     localStorage.setItem(key, JSON.stringify(records));
   } catch (error) {
     console.error('Error saving records', error);
+  }
+}
+
+/**
+ * ดึงข้อมูลเรคคอร์ดทั้งหมดแยกตามบริษัทในคราวเดียว เพื่อให้สลับไปมาได้ลื่นไหล ไม่ต้องรอ
+ */
+export function loadAllRecordsByBusiness(): Record<string, Record<string, DailyRecord>> {
+  try {
+    const businesses = loadBusinesses();
+    const byBiz: Record<string, Record<string, DailyRecord>> = {};
+
+    businesses.forEach((b) => {
+      byBiz[b.id] = loadAllRecords(b.id);
+    });
+
+    if (!byBiz['clinic-main']) {
+      byBiz['clinic-main'] = loadAllRecords('clinic-main');
+    }
+
+    return byBiz;
+  } catch (error) {
+    console.error('Error loading all records by business', error);
+    return { 'clinic-main': loadAllRecords('clinic-main') };
   }
 }
 
@@ -195,6 +251,16 @@ export function saveDailyRecord(date: string, record: DailyRecord, businessId?: 
   records[date] = recordWithTimestamp;
   // Save locally per business
   saveAllRecords(records, targetBizId);
+
+  // บันทึกซิงค์สำรองคีย์หลักเพื่อความเข้ากันได้
+  if (targetBizId === 'clinic-main') {
+    try {
+      localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+    } catch (e) {
+      // ignore
+    }
+  }
+
   // Real-time Sync to Firebase Firestore specific to this modified record date and business!
   saveRecordToFirebase(date, recordWithTimestamp, targetBizId);
 }

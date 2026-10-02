@@ -15,12 +15,7 @@ export const DEFAULT_BUSINESSES: Business[] = [
     description: 'บันทึกตรวจโรค ตรวจสุขภาพทั่วไป ค่ายาและการรักษา',
     color: 'emerald',
     isDefault: true,
-    fixCosts: [
-      { id: 'fix-1', name: 'ค่าเช่าสถานที่ / คลินิก', amount: 15000 },
-      { id: 'fix-2', name: 'ค่าไฟฟ้า (ผันแปร)', amount: 0 },
-      { id: 'fix-3', name: 'ค่าน้ำประปา', amount: 350 },
-      { id: 'fix-4', name: 'ค่าอินเทอร์เน็ตคลินิก', amount: 799 },
-    ],
+    fixCosts: [],
   },
   {
     id: 'lab-medical',
@@ -28,11 +23,7 @@ export const DEFAULT_BUSINESSES: Business[] = [
     code: 'LAB',
     description: 'วิเคราะห์โลหิตวิทยา เคมีคลินิก และแล็บส่งนอก (Out-Lab)',
     color: 'blue',
-    fixCosts: [
-      { id: 'fix-lab-1', name: 'ค่าบำรุงรักษาเครื่องตรวจวิเคราะห์', amount: 5000 },
-      { id: 'fix-lab-2', name: 'ค่าไฟฟ้าห้องแล็บ (ผันแปร)', amount: 0 },
-      { id: 'fix-lab-3', name: 'ค่าซอฟต์แวร์ระบบ LIS / รายเดือน', amount: 1200 },
-    ],
+    fixCosts: [],
   },
   {
     id: 'company-sub',
@@ -40,10 +31,7 @@ export const DEFAULT_BUSINESSES: Business[] = [
     code: 'BR2',
     description: 'สาขาบริการเสริมและตรวจสุขภาพเคลื่อนที่',
     color: 'purple',
-    fixCosts: [
-      { id: 'fix-sub-1', name: 'ค่าเช่าสถานที่สาขา 2', amount: 8000 },
-      { id: 'fix-sub-2', name: 'ค่าไฟฟ้าสาขา (ผันแปร)', amount: 0 },
-    ],
+    fixCosts: [],
   },
 ];
 

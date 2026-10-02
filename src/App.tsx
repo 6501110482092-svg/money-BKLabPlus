@@ -9,6 +9,7 @@ import { getTodayDateString, getBusinessColorClasses } from './constants';
 import { 
   loadDailyRecord, 
   loadAllRecords,
+  loadAllRecordsByBusiness,
   saveDailyRecord,
   syncRecordsWithServer,
   syncLabTestsWithServer,
@@ -64,16 +65,25 @@ import { motion, AnimatePresence } from 'motion/react';
 type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('income');
-  const [currentDate, setCurrentDate] = useState<string>(() => getTodayDateString());
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    return (localStorage.getItem('bklabplus_active_tab') as TabType) || 'income';
+  });
+  const [currentDate, setCurrentDate] = useState<string>(() => {
+    const savedActiveTab = (localStorage.getItem('bklabplus_active_tab') as TabType) || 'income';
+    const savedForTab = localStorage.getItem(`bklabplus_tab_date_${savedActiveTab}`);
+    if (savedForTab) return savedForTab;
+    return localStorage.getItem('bklabplus_current_date') || getTodayDateString();
+  });
   
   // รัฐระบบแยกบริษัท/ธุรกิจ (Multi-Business System)
   const [businesses, setBusinesses] = useState<Business[]>(() => loadBusinesses());
   const [activeBusinessId, setActiveBusinessId] = useState<string>(() => loadActiveBusinessId());
   const [isBizDropdownOpen, setIsBizDropdownOpen] = useState<boolean>(false);
 
-  // ข้อมูลเรคคอร์ดทั้งหมด แยกตามบริษัท: { [businessId]: { [date]: DailyRecord } }
-  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>({});
+  // ข้อมูลเรคคอร์ดทั้งหมด แยกตามบริษัท โหลดจาก LocalStorage ทันทีตั้งแต่เริ่ม เพื่อไม่ให้หน้าต่างว่างเปล่า
+  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>(() => {
+    return loadAllRecordsByBusiness();
+  });
 
   const [user, setUser] = useState<{ uid: string; name: string; email: string; photoURL: string } | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
@@ -96,6 +106,18 @@ export default function App() {
     setActiveBusinessId(id);
     saveActiveBusinessId(id);
     setIsBizDropdownOpen(false);
+  };
+
+  // จัดการการเปลี่ยน Tab โดยจดจำวันที่ที่เคยเลือกไว้ของแต่ละโหมด
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab);
+    localStorage.setItem('bklabplus_active_tab', newTab);
+    if (newTab !== 'settings' && newTab !== 'summary') {
+      const savedDate = localStorage.getItem(`bklabplus_tab_date_${newTab}`);
+      if (savedDate) {
+        setCurrentDate(savedDate);
+      }
+    }
   };
 
   // ติดตามการเปลี่ยนแปลงสถานะล็อกอิน Google Gmail แบบเรียลไทม์
@@ -135,18 +157,18 @@ export default function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // ตั้งค่าวันที่เริ่มต้นเมื่อเปิดแอปพลิเคชันครั้งแรก
-  useEffect(() => {
-    const today = getTodayDateString();
-    setCurrentDate(today);
-  }, []);
-
   // ดึงข้อมูลและเชื่อมโยงเรียลไทม์ผ่าน Firebase Firestore สู่คลาวด์ 100%
   useEffect(() => {
     // สมัครซิงค์สัญญาณสดแบบ Real-time จากทาง Firebase Firestore
     // ส่งข้อมูลแยกตามบริษัท เพื่อให้แต่ละบริษัทไม่ปนกัน
     const unsubscribeRecords = subscribeToRecords((byBiz) => {
-      setRecordsByBusiness(byBiz);
+      setRecordsByBusiness((prev) => {
+        const merged: Record<string, Record<string, DailyRecord>> = { ...prev };
+        Object.keys(byBiz).forEach((bId) => {
+          merged[bId] = { ...(merged[bId] || {}), ...(byBiz[bId] || {}) };
+        });
+        return merged;
+      });
     });
 
     // ซิงค์รายชื่อบริษัทสดจาก Firebase Cloud
@@ -168,7 +190,7 @@ export default function App() {
   }, []);
 
   // สกัดข้อมูลสำหรับวันที่ของบริษัทที่เลือกในปัจจุบัน (Single Source of Truth)
-  const currentBizRecords = recordsByBusiness[activeBusinessId] || {};
+  const currentBizRecords = recordsByBusiness[activeBusinessId] || loadAllRecords(activeBusinessId);
   const currentRecord: DailyRecord = currentBizRecords[currentDate] || loadDailyRecord(currentDate, activeBusinessId);
 
   // ฟังก์ชันบันทึกข้อมูลประจำวันลง LocalStorage + Firebase Firestore โดยระบุ businessId ชัดเจน
@@ -193,6 +215,12 @@ export default function App() {
 
   const handleDateChange = (newDate: string) => {
     setCurrentDate(newDate);
+    if (newDate) {
+      localStorage.setItem('bklabplus_current_date', newDate);
+      if (activeTab !== 'settings' && activeTab !== 'summary') {
+        localStorage.setItem(`bklabplus_tab_date_${activeTab}`, newDate);
+      }
+    }
   };
 
   if (authLoading) {
@@ -554,16 +582,27 @@ export default function App() {
               </div>
             )}
 
-            {/* กล่องเลือกวันที่หลักของระบบ */}
-            <div className="flex items-center gap-2.5 bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700">
-              <span className="text-xs text-slate-400 font-bold hidden sm:inline">วันที่บันทึก:</span>
-              <input
-                type="date"
-                id="global-date-picker"
-                value={currentDate}
-                onChange={(e) => handleDateChange(e.target.value)}
-                className="text-xs font-black text-white bg-slate-900 outline-none border border-slate-700 focus:border-blue-500 rounded px-2.5 py-1"
-              />
+            {/* กล่องเลือกวันที่หลักของระบบ ปรับตามโหมดปัจจุบัน */}
+            <div className="flex items-center gap-2 bg-slate-800/80 px-3.5 py-1.5 rounded-xl border border-slate-700">
+              {activeTab === 'summary' ? (
+                <div className="flex items-center gap-2 text-xs text-blue-300 font-bold py-0.5">
+                  <CalendarDays size={14} className="text-blue-400" />
+                  <span>โหมดสรุปสะสม: ดูตามช่วงวันที่ในรายงาน</span>
+                </div>
+              ) : (
+                <>
+                  <span className="text-xs text-slate-400 font-bold hidden sm:inline">
+                    วันที่ {activeTab === 'income' ? '(รายรับ)' : activeTab === 'expense' ? '(รายจ่าย)' : activeTab === 'daily' ? '(รายงานประจำวัน)' : '(ข้อมูล)'}:
+                  </span>
+                  <input
+                    type="date"
+                    id="global-date-picker"
+                    value={currentDate}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="text-xs font-black text-white bg-slate-900 outline-none border border-slate-700 focus:border-blue-500 rounded px-2.5 py-1 cursor-pointer"
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -604,7 +643,7 @@ export default function App() {
             <button
               type="button"
               id="btn-quick-manage-biz"
-              onClick={() => setActiveTab('settings')}
+              onClick={() => handleTabChange('settings')}
               className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1"
             >
               <Settings size={13} />
@@ -621,7 +660,7 @@ export default function App() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
+                onClick={() => handleTabChange(tab.id as TabType)}
                 className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-slate-905 bg-slate-900 text-white border-slate-800 shadow-md'

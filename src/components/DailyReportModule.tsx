@@ -24,6 +24,15 @@ export default function DailyReportModule({
   businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
   businessCode = 'CLN',
 }: DailyReportModuleProps) {
+  const [customDailyTitle, setCustomDailyTitle] = React.useState<string>(() => {
+    return localStorage.getItem('bklabplus_daily_custom_title') || '';
+  });
+
+  const handleCustomDailyTitleChange = (val: string) => {
+    setCustomDailyTitle(val);
+    localStorage.setItem('bklabplus_daily_custom_title', val);
+  };
+
   const incomeItems = record?.incomeItems || [];
   const expenseItems = record?.expenseItems || [];
   const outLabItems = record?.outLabItems || [];
@@ -200,7 +209,7 @@ export default function DailyReportModule({
       {/* ใช้ CSS หน้าพิมพ์ที่จะจัดเรียงฟิกให้อัตโนมัติเมื่อกดพิมพ์ */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm space-y-8 print:border-0 print:shadow-none print:p-0" id="daily-print-area">
         {/* Header แบรนด์ */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b-2 border-slate-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b-2 border-slate-100 gap-4">
           <div>
             <div className="flex items-center gap-2.5">
               <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
@@ -219,7 +228,27 @@ export default function DailyReportModule({
               Income-Expense Daily Report • {businessName}
             </p>
           </div>
-          <div className="mt-4 md:mt-0 text-left md:text-right">
+
+          {/* ตรงกลาง: ช่องพิมพ์หัวข้อเอกสาร / เดือน / กะการทำงาน */}
+          <div className="flex-1 flex flex-col items-center justify-center px-2 md:px-4 w-full md:w-auto text-center">
+            <div className="w-full max-w-sm bg-slate-50 hover:bg-blue-50/60 p-2 rounded-xl border border-slate-200 hover:border-blue-300 transition-all print:hidden">
+              <span className="text-[10px] font-bold text-slate-500 block mb-1">หัวข้อรายงาน (พิมพ์แก้ไขได้ เช่น ประจำเดือน / เวร):</span>
+              <input
+                type="text"
+                value={customDailyTitle}
+                onChange={(e) => handleCustomDailyTitleChange(e.target.value)}
+                placeholder="คลิกพิมพ์หัวข้อ เช่น ประจำเดือน กันยายน / เวรเช้า"
+                className="w-full text-center text-xs font-black text-slate-800 bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 outline-none shadow-2xs"
+              />
+            </div>
+            {customDailyTitle && (
+              <h3 className="hidden print:block text-base font-black text-slate-900 text-center">
+                {customDailyTitle}
+              </h3>
+            )}
+          </div>
+
+          <div className="mt-2 md:mt-0 text-left md:text-right shrink-0">
             <span className="text-xs font-bold text-gray-400 block uppercase">เอกสารสรุปยอดรายวัน</span>
             <span className="text-sm font-black text-slate-800">{currentDate}</span>
           </div>

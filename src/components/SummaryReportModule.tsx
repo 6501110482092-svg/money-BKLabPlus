@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DailyRecord, Business } from '../types';
 import { formatNumber } from '../constants';
-import { loadBusinesses } from '../utils/storage';
+import { loadBusinesses, loadAllRecords, loadAllRecordsByBusiness } from '../utils/storage';
 import { subscribeToRecords, subscribeToBusinesses } from '../utils/firebase';
 import * as XLSX from 'xlsx';
 import {
@@ -45,6 +45,9 @@ import {
   Filter,
   ArrowDownRight,
   ArrowUpRight,
+  Edit3,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 
 interface SummaryReportProps {
@@ -102,9 +105,127 @@ export default function SummaryReportModule({
   activeBusinessId,
   businesses: propBusinesses,
 }: SummaryReportProps) {
-  // วันที่เริ่มต้น-สิ้นสุด สำหรับภาพรวม
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const THAI_MONTH_NAMES = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+
+  // วันที่เริ่มต้น-สิ้นสุด สำหรับภาพรวม โดยจดจำค่าที่เคยเลือกไว้ ไม่กลับไปค้าง 7 วันก่อน
+  const [startDate, setStartDate] = useState<string>(() => {
+    const saved = localStorage.getItem('bklabplus_summary_start_date');
+    if (saved) return saved;
+    // ค่าเริ่มต้นเป็นวันที่ 1 ของเดือนปัจจุบัน
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+
+  const [endDate, setEndDate] = useState<string>(() => {
+    const saved = localStorage.getItem('bklabplus_summary_end_date');
+    if (saved) return saved;
+    // ค่าเริ่มต้นเป็นวันสิ้นเดือนของเดือนปัจจุบัน (หรือวันนี้)
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    if (val) localStorage.setItem('bklabplus_summary_start_date', val);
+  };
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    if (val) localStorage.setItem('bklabplus_summary_end_date', val);
+  };
+
+  // หัวข้อเอกสาร / ประจำเดือน กำหนดเองได้
+  const [customReportTitle, setCustomReportTitle] = useState<string>(() => {
+    const saved = localStorage.getItem('bklabplus_summary_custom_title');
+    if (saved !== null) return saved;
+    return 'ประจำเดือน กันยายน 2569';
+  });
+
+  const handleCustomTitleChange = (val: string) => {
+    setCustomReportTitle(val);
+    localStorage.setItem('bklabplus_summary_custom_title', val);
+  };
+
+  // แนะนำชื่อเดือนตาม startDate อัตโนมัติ
+  const suggestedMonthTitle = useMemo(() => {
+    if (!startDate) return '';
+    const parts = startDate.split('-');
+    if (parts.length >= 2) {
+      const mIdx = parseInt(parts[1], 10) - 1;
+      const beYear = parseInt(parts[0], 10) + 543;
+      const thMonth = THAI_MONTH_NAMES[mIdx] || '';
+      return `ประจำเดือน ${thMonth} ${beYear}`;
+    }
+    return '';
+  }, [startDate]);
+
+  // ฟังก์ชันเลือกช่วงวันที่ด่วน เช่น เดือนที่แล้ว (01/09/26 - 30/09/26)
+  const handleSetDatePreset = (preset: 'last_month' | 'this_month' | 'last_7_days' | 'last_30_days' | 'this_year') => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    let start = '';
+    let end = '';
+
+    if (preset === 'last_month') {
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      start = fmt(firstDay);
+      end = fmt(lastDay);
+    } else if (preset === 'this_month') {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      start = fmt(firstDay);
+      end = fmt(lastDay);
+    } else if (preset === 'last_7_days') {
+      const past = new Date(today);
+      past.setDate(today.getDate() - 6);
+      start = fmt(past);
+      end = fmt(today);
+    } else if (preset === 'last_30_days') {
+      const past = new Date(today);
+      past.setDate(today.getDate() - 29);
+      start = fmt(past);
+      end = fmt(today);
+    } else if (preset === 'this_year') {
+      start = `${year}-01-01`;
+      end = `${year}-12-31`;
+    }
+
+    if (start && end) {
+      setStartDate(start);
+      setEndDate(end);
+      localStorage.setItem('bklabplus_summary_start_date', start);
+      localStorage.setItem('bklabplus_summary_end_date', end);
+
+      const startParts = start.split('-');
+      const mIdx = parseInt(startParts[1], 10) - 1;
+      const beYear = parseInt(startParts[0], 10) + 543;
+      const thMonth = THAI_MONTH_NAMES[mIdx] || '';
+      if (thMonth) {
+        const title = `ประจำเดือน ${thMonth} ${beYear}`;
+        setCustomReportTitle(title);
+        localStorage.setItem('bklabplus_summary_custom_title', title);
+      }
+    }
+  };
+
   const [businesses, setBusinesses] = useState<Business[]>(() => propBusinesses || loadBusinesses());
   const [selectedBiz, setSelectedBiz] = useState<string>(activeBusinessId || 'all');
 
@@ -121,7 +242,9 @@ export default function SummaryReportModule({
   // ช่องค้นหาเพิ่มเติม
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>({});
+  const [recordsByBusiness, setRecordsByBusiness] = useState<Record<string, Record<string, DailyRecord>>>(() => {
+    return loadAllRecordsByBusiness();
+  });
   const [, setFlatRecords] = useState<Record<string, DailyRecord>>({});
 
   useEffect(() => {
@@ -139,7 +262,13 @@ export default function SummaryReportModule({
   useEffect(() => {
     // สมัครเชื่อมสัญญาณสดเรียลไทม์จากค่ายระบบคลาวด์ Firebase
     const unsubscribeRecords = subscribeToRecords((byBiz, flat) => {
-      setRecordsByBusiness(byBiz);
+      setRecordsByBusiness((prev) => {
+        const merged: Record<string, Record<string, DailyRecord>> = { ...prev };
+        Object.keys(byBiz).forEach((bId) => {
+          merged[bId] = { ...(merged[bId] || {}), ...(byBiz[bId] || {}) };
+        });
+        return merged;
+      });
       setFlatRecords(flat);
     });
 
@@ -149,33 +278,20 @@ export default function SummaryReportModule({
       }
     });
 
-    // เซ็ตค่าช่วงเริ่มต้นเป็น 7 วันที่ผ่านมา ถึงวันนี้ เท่านั้นถ้าไม่ได้เซ็ตค่าไว้ก่อน
-    if (!startDate || !endDate) {
-      const today = new Date();
-      const lastWeek = new Date(today);
-      lastWeek.setDate(today.getDate() - 6);
-
-      const formatDate = (d: Date) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
-
-      setStartDate(formatDate(lastWeek));
-      setEndDate(formatDate(today));
-    }
-
     return () => {
       unsubscribeRecords();
       unsubscribeBusinesses();
     };
-  }, [currentDate]);
+  }, []);
 
   // คำนวณ records ตามบริษัทที่เลือกกรอง
   const records = useMemo(() => {
     if (selectedBiz !== 'all') {
-      return recordsByBusiness[selectedBiz] || {};
+      const bizRecs = recordsByBusiness[selectedBiz];
+      if (bizRecs && Object.keys(bizRecs).length > 0) {
+        return bizRecs;
+      }
+      return loadAllRecords(selectedBiz);
     }
 
     // กรณีเลือก "รวมทุกบริษัท (Consolidated)" ให้รวมข้อมูลแต่ละวันเข้าด้วยกัน
@@ -489,9 +605,10 @@ export default function SummaryReportModule({
     const bizPrefix = selectedBiz === 'all' ? 'AllBiz' : activeBizObj?.code || 'BIZ';
     const filename = `${bizPrefix}_SummaryReport_${startDate}_to_${endDate}.xlsx`;
 
-    // 1. หัวตารางเอกสาร ระบุชื่อแล็บ/ธุรกิจชัดเจน
+    // 1. หัวตารางเอกสาร ระบุชื่อแล็บ/ธุรกิจและหัวข้อประจำเดือนชัดเจน
     const headerRow: (string | number)[][] = [
       ['รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม'],
+      ...(customReportTitle ? [[`หัวข้อเอกสาร / ประจำเดือน: ${customReportTitle}`]] : []),
       [`ชื่อสถานพยาบาล / แล็บ (สมุดบัญชีธุรกิจ): ${activeBizTitle}`],
       [`ช่วงวันที่: ${startDate} ถึง ${endDate} (รวม ${datesInRange.length} วัน)`],
       [],
@@ -627,15 +744,15 @@ export default function SummaryReportModule({
               </select>
             </div>
 
-            {/* เลือกช่วงวันที่ */}
-            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            {/* เลือกช่วงวันที่ และปุ่มเลือกช่วงเวลาด่วน */}
+            <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
               <Calendar size={15} className="text-slate-500 shrink-0" />
               <span className="text-xs font-semibold text-gray-500">ตั้งแต่</span>
               <input
                 type="date"
                 id="summary-start-date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1 bg-white cursor-pointer"
               />
               <span className="text-xs font-semibold text-gray-500">ถึง</span>
@@ -643,9 +760,43 @@ export default function SummaryReportModule({
                 type="date"
                 id="summary-end-date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 className="text-xs font-bold text-gray-700 border border-gray-200 focus:border-blue-500 outline-none rounded-lg px-2 py-1 bg-white cursor-pointer"
               />
+
+              {/* ปุ่มลัดเลือกช่วงเวลา */}
+              <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => handleSetDatePreset('last_month')}
+                  className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition-colors cursor-pointer"
+                  title="เลือกเดือนที่แล้ว เช่น 01/09/2026 - 30/09/2026"
+                >
+                  📅 เดือนที่แล้ว (ก.ย.)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetDatePreset('this_month')}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 transition-colors cursor-pointer"
+                  title="เลือกเดือนนี้"
+                >
+                  เดือนนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetDatePreset('last_30_days')}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold border border-slate-200 transition-colors cursor-pointer hidden lg:inline-block"
+                >
+                  30 วันล่าสุด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetDatePreset('this_year')}
+                  className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold border border-slate-200 transition-colors cursor-pointer hidden lg:inline-block"
+                >
+                  ทั้งปีนี้
+                </button>
+              </div>
             </div>
           </div>
 
@@ -780,9 +931,10 @@ export default function SummaryReportModule({
       {/* เอกสารรายงานสรุปสะสม (พิมพ์ / แสดงผล) */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-150 shadow-xs space-y-8 print:border-0 print:shadow-none print:p-0">
         
-        {/* หัวกระดาษเอกสาร: แสดงชื่อแล็บ/ธุรกิจที่เลือกจากสมุดบัญชีธุรกิจอย่างโดดเด่น */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b-2 border-slate-800/10">
-          <div className="flex items-center gap-3.5">
+        {/* หัวกระดาษเอกสาร: แสดงชื่อแล็บ/ธุรกิจที่เลือกจากสมุดบัญชีธุรกิจอย่างโดดเด่น พร้อมช่องพิมพ์หัวข้อตรงกลาง */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b-2 border-slate-800/10">
+          {/* ซีกซ้าย: ชื่อแล็บ/ธุรกิจ */}
+          <div className="flex items-center gap-3.5 max-w-sm">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${
               selectedBiz === 'all'
                 ? 'bg-gradient-to-br from-indigo-600 to-purple-700'
@@ -796,23 +948,77 @@ export default function SummaryReportModule({
                   {activeBizTitle}
                 </h1>
                 {activeBizObj?.code && (
-                  <span className="px-2 py-0.5 text-xs font-black bg-blue-100 text-blue-800 rounded-md uppercase">
+                  <span className="px-2 py-0.5 text-xs font-black bg-blue-100 text-blue-800 rounded-md uppercase font-mono">
                     {activeBizObj.code}
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 font-semibold mt-0.5 uppercase tracking-wide">
-                รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม (Cumulative Financial Performance)
+                รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม
               </p>
               {activeBizObj?.description && (
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
                   {activeBizObj.description}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl w-full sm:w-auto border sm:border-0 border-slate-100">
+          {/* ตรงกลาง: สีขาวว่างๆตรงกลาง ให้พิมพ์หัวข้อใส่เพิ่มได้ เช่น เดือนนั้นๆ */}
+          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-4 w-full lg:w-auto text-center my-1 lg:my-0">
+            <div className="w-full max-w-md bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-blue-50/70 hover:bg-blue-50/90 p-2 sm:p-2.5 rounded-2xl border border-blue-200 transition-all shadow-2xs group print:hidden">
+              <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700 mb-1">
+                <Edit3 size={12} className="text-blue-600" />
+                <span>หัวข้อเอกสาร / ประจำเดือน (พิมพ์แก้ไขได้):</span>
+              </div>
+              <input
+                type="text"
+                id="summary-custom-month-title-input"
+                value={customReportTitle}
+                onChange={(e) => handleCustomTitleChange(e.target.value)}
+                placeholder="คลิกเพื่อพิมพ์หัวข้อ เช่น ประจำเดือน กันยายน 2569"
+                className="w-full text-center text-sm md:text-base font-black text-slate-900 bg-white hover:bg-white focus:bg-white border border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 rounded-xl px-3 py-1.5 outline-none transition-all shadow-2xs"
+              />
+              {/* แถบแนะนำหัวข้อด่วนตามเดือนที่เลือก */}
+              <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
+                {suggestedMonthTitle && customReportTitle !== suggestedMonthTitle && (
+                  <button
+                    type="button"
+                    onClick={() => handleCustomTitleChange(suggestedMonthTitle)}
+                    className="text-[10px] font-bold text-blue-700 bg-white hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="คลิกเพื่อใช้ชื่อเดือนอัตโนมัติตามช่วงวันที่"
+                  >
+                    <Sparkles size={10} className="text-amber-500" />
+                    <span>ใช้: {suggestedMonthTitle}</span>
+                  </button>
+                )}
+                {customReportTitle && (
+                  <button
+                    type="button"
+                    onClick={() => handleCustomTitleChange('')}
+                    className="text-[10px] font-medium text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                  >
+                    ล้าง
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* แสดงหัวข้อตรงกลางตอนพิมพ์เอกสาร PDF ชัดเจน สง่างาม */}
+            {customReportTitle && (
+              <div className="hidden print:block text-center py-1">
+                <h2 className="text-base sm:text-lg font-black text-slate-900">
+                  {customReportTitle}
+                </h2>
+                <span className="text-[11px] font-bold text-slate-500 block">
+                  สรุปรายละเอียดรายได้และรายจ่ายสะสม
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ซีกขวา: ช่วงวันที่บันทึกสะสม */}
+          <div className="sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl w-full sm:w-auto border sm:border-0 border-slate-100 shrink-0">
             <span className="text-[11px] text-slate-400 block font-bold uppercase tracking-wider">
               ช่วงวันที่บันทึกสะสม
             </span>
