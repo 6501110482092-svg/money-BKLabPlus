@@ -209,12 +209,12 @@ export default function DailyReportModule({
       {/* ใช้ CSS หน้าพิมพ์ที่จะจัดเรียงฟิกให้อัตโนมัติเมื่อกดพิมพ์ */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-100 shadow-sm space-y-8 print:border-0 print:shadow-none print:p-0" id="daily-print-area">
         {/* Header แบรนด์ */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b-2 border-slate-100 gap-4">
-          <div>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-100">
+          <div className="space-y-2 flex-1 min-w-0">
             <div className="flex items-center gap-2.5">
-              <span className="w-4 h-8 bg-blue-600 rounded-md"></span>
+              <span className="w-4 h-8 bg-blue-600 rounded-md shrink-0"></span>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xl md:text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     Daily Ledger
                   </span>
@@ -224,33 +224,32 @@ export default function DailyReportModule({
                 </div>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-1 uppercase font-semibold tracking-wider">
-              Income-Expense Daily Report • {businessName}
-            </p>
-          </div>
 
-          {/* ตรงกลาง: ช่องพิมพ์หัวข้อเอกสาร / เดือน / กะการทำงาน */}
-          <div className="flex-1 flex flex-col items-center justify-center px-2 md:px-4 w-full md:w-auto text-center">
-            <div className="w-full max-w-sm bg-slate-50 hover:bg-blue-50/60 p-2 rounded-xl border border-slate-200 hover:border-blue-300 transition-all print:hidden">
-              <span className="text-[10px] font-bold text-slate-500 block mb-1">หัวข้อรายงาน (พิมพ์แก้ไขได้ เช่น ประจำเดือน / เวร):</span>
-              <input
-                type="text"
-                value={customDailyTitle}
-                onChange={(e) => handleCustomDailyTitleChange(e.target.value)}
-                placeholder="คลิกพิมพ์หัวข้อ เช่น ประจำเดือน กันยายน / เวรเช้า"
-                className="w-full text-center text-xs font-black text-slate-800 bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 outline-none shadow-2xs"
-              />
+            {/* ช่องพิมพ์หัวข้อเอกสาร / เดือน / กะการทำงาน ลงมาอยู่ใต้ชื่อบริษัท */}
+            <div className="space-y-1">
+              <div className="print:hidden">
+                <input
+                  type="text"
+                  value={customDailyTitle}
+                  onChange={(e) => handleCustomDailyTitleChange(e.target.value)}
+                  placeholder="คลิกพิมพ์หัวข้อ เช่น ประจำเดือน กันยายน / เวรเช้า"
+                  className="text-xs font-black text-slate-800 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg px-2.5 py-1 outline-none shadow-2xs w-full max-w-sm"
+                />
+              </div>
+              {customDailyTitle && (
+                <h3 className="hidden print:block text-base font-black text-slate-900">
+                  {customDailyTitle}
+                </h3>
+              )}
+              <p className="text-xs text-gray-400 uppercase font-semibold tracking-wider">
+                Income-Expense Daily Report • {businessName}
+              </p>
             </div>
-            {customDailyTitle && (
-              <h3 className="hidden print:block text-base font-black text-slate-900 text-center">
-                {customDailyTitle}
-              </h3>
-            )}
           </div>
 
-          <div className="mt-2 md:mt-0 text-left md:text-right shrink-0">
-            <span className="text-xs font-bold text-gray-400 block uppercase">เอกสารสรุปยอดรายวัน</span>
-            <span className="text-sm font-black text-slate-800">{currentDate}</span>
+          <div className="text-left sm:text-right shrink-0 bg-slate-50 p-2.5 px-3.5 rounded-xl border border-slate-150 self-start sm:self-auto min-w-[150px]">
+            <span className="text-[11px] font-bold text-gray-400 block uppercase">เอกสารสรุปยอดรายวัน</span>
+            <span className="text-sm font-black text-slate-800 block mt-0.5 font-mono">{currentDate}</span>
           </div>
         </div>
 

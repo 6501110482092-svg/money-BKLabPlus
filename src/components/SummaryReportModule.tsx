@@ -931,18 +931,21 @@ export default function SummaryReportModule({
       {/* เอกสารรายงานสรุปสะสม (พิมพ์ / แสดงผล) */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-150 shadow-xs space-y-8 print:border-0 print:shadow-none print:p-0">
         
-        {/* หัวกระดาษเอกสาร: แสดงชื่อแล็บ/ธุรกิจที่เลือกจากสมุดบัญชีธุรกิจอย่างโดดเด่น พร้อมช่องพิมพ์หัวข้อตรงกลาง */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b-2 border-slate-800/10">
-          {/* ซีกซ้าย: ชื่อแล็บ/ธุรกิจ */}
-          <div className="flex items-center gap-3.5 max-w-sm">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${
+        {/* หัวกระดาษเอกสาร: ชื่อบริษัท + หัวข้อเอกสารอยู่ด้านซ้าย, ช่วงวันที่อยู่มุมขวาบนอย่างเป็นระเบียบเรียบร้อย */}
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b-2 border-slate-800/10">
+          
+          {/* ซีกซ้าย: โลโก้ + ชื่อบริษัท/ธุรกิจ + หัวข้อเอกสารใต้ชื่อบริษัท */}
+          <div className="flex items-start gap-3.5 flex-1 min-w-0">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 mt-0.5 ${
               selectedBiz === 'all'
                 ? 'bg-gradient-to-br from-indigo-600 to-purple-700'
                 : 'bg-gradient-to-br from-blue-600 to-indigo-700'
             }`}>
               {selectedBiz === 'all' ? <Building2 size={24} /> : <HeartPulse size={24} />}
             </div>
-            <div>
+
+            <div className="space-y-2 flex-1 min-w-0">
+              {/* แถวชื่อบริษัท + รหัส */}
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
                   {activeBizTitle}
@@ -953,82 +956,79 @@ export default function SummaryReportModule({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 font-semibold mt-0.5 uppercase tracking-wide">
-                รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม
-              </p>
-              {activeBizObj?.description && (
-                <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
-                  {activeBizObj.description}
-                </p>
-              )}
-            </div>
-          </div>
 
-          {/* ตรงกลาง: สีขาวว่างๆตรงกลาง ให้พิมพ์หัวข้อใส่เพิ่มได้ เช่น เดือนนั้นๆ */}
-          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-4 w-full lg:w-auto text-center my-1 lg:my-0">
-            <div className="w-full max-w-md bg-gradient-to-r from-blue-50/70 via-indigo-50/70 to-blue-50/70 hover:bg-blue-50/90 p-2 sm:p-2.5 rounded-2xl border border-blue-200 transition-all shadow-2xs group print:hidden">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700 mb-1">
-                <Edit3 size={12} className="text-blue-600" />
-                <span>หัวข้อเอกสาร / ประจำเดือน (พิมพ์แก้ไขได้):</span>
-              </div>
-              <input
-                type="text"
-                id="summary-custom-month-title-input"
-                value={customReportTitle}
-                onChange={(e) => handleCustomTitleChange(e.target.value)}
-                placeholder="คลิกเพื่อพิมพ์หัวข้อ เช่น ประจำเดือน กันยายน 2569"
-                className="w-full text-center text-sm md:text-base font-black text-slate-900 bg-white hover:bg-white focus:bg-white border border-blue-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 rounded-xl px-3 py-1.5 outline-none transition-all shadow-2xs"
-              />
-              {/* แถบแนะนำหัวข้อด่วนตามเดือนที่เลือก */}
-              <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
-                {suggestedMonthTitle && customReportTitle !== suggestedMonthTitle && (
-                  <button
-                    type="button"
-                    onClick={() => handleCustomTitleChange(suggestedMonthTitle)}
-                    className="text-[10px] font-bold text-blue-700 bg-white hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                    title="คลิกเพื่อใช้ชื่อเดือนอัตโนมัติตามช่วงวันที่"
-                  >
-                    <Sparkles size={10} className="text-amber-500" />
-                    <span>ใช้: {suggestedMonthTitle}</span>
-                  </button>
-                )}
+              {/* หัวข้อเอกสาร: ลงมาอยู่ใต้ชื่อบริษัทตามที่ต้องการ */}
+              <div className="space-y-1.5 pt-0.5">
+                {/* กล่องพิมพ์หัวข้อเอกสารบนหน้าจอ */}
+                <div className="flex flex-wrap items-center gap-2 print:hidden">
+                  <div className="relative inline-flex items-center">
+                    <input
+                      type="text"
+                      id="summary-custom-month-title-input"
+                      value={customReportTitle}
+                      onChange={(e) => handleCustomTitleChange(e.target.value)}
+                      placeholder="คลิกพิมพ์หัวข้อเอกสาร เช่น ประจำเดือน กันยายน 2569"
+                      className="text-sm md:text-base font-extrabold text-blue-900 bg-blue-50/70 hover:bg-blue-50 focus:bg-white border border-blue-200 focus:border-blue-500 rounded-xl px-3 py-1.5 outline-none transition-all shadow-2xs min-w-[260px] sm:min-w-[340px]"
+                    />
+                  </div>
+
+                  {/* ปุ่มด่วนใช้ชื่อเดือนแนะนำตามช่วงวันที่ */}
+                  {suggestedMonthTitle && customReportTitle !== suggestedMonthTitle && (
+                    <button
+                      type="button"
+                      onClick={() => handleCustomTitleChange(suggestedMonthTitle)}
+                      className="text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
+                      title="คลิกเพื่อใช้ชื่อเดือนอัตโนมัติตามช่วงวันที่"
+                    >
+                      <Sparkles size={11} className="text-amber-500" />
+                      <span>ใช้: {suggestedMonthTitle}</span>
+                    </button>
+                  )}
+                  {customReportTitle && (
+                    <button
+                      type="button"
+                      onClick={() => handleCustomTitleChange('')}
+                      className="text-[11px] font-medium text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                      title="ล้างหัวข้อ"
+                    >
+                      ล้าง
+                    </button>
+                  )}
+                </div>
+
+                {/* แสดงหัวข้อตัวจริงตอนพิมพ์ PDF */}
                 {customReportTitle && (
-                  <button
-                    type="button"
-                    onClick={() => handleCustomTitleChange('')}
-                    className="text-[10px] font-medium text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                  >
-                    ล้าง
-                  </button>
+                  <h2 className="hidden print:block text-base md:text-lg font-black text-slate-900">
+                    {customReportTitle}
+                  </h2>
+                )}
+
+                {/* รายละเอียดย่อย / คำอธิบาย */}
+                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">
+                  รายงานสรุปภาพรวมรายได้-รายจ่าย และรายละเอียดการเงินสะสม
+                </p>
+                {activeBizObj?.description && (
+                  <p className="text-[11px] text-gray-400">
+                    {activeBizObj.description}
+                  </p>
                 )}
               </div>
             </div>
-
-            {/* แสดงหัวข้อตรงกลางตอนพิมพ์เอกสาร PDF ชัดเจน สง่างาม */}
-            {customReportTitle && (
-              <div className="hidden print:block text-center py-1">
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  {customReportTitle}
-                </h2>
-                <span className="text-[11px] font-bold text-slate-500 block">
-                  สรุปรายละเอียดรายได้และรายจ่ายสะสม
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* ซีกขวา: ช่วงวันที่บันทึกสะสม */}
-          <div className="sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl w-full sm:w-auto border sm:border-0 border-slate-100 shrink-0">
-            <span className="text-[11px] text-slate-400 block font-bold uppercase tracking-wider">
+          {/* ซีกขวา: ช่วงวันที่บันทึกสะสม อยู่มุมขวาบนอย่างเรียบร้อย ไม่ตกบรรทัด */}
+          <div className="text-left sm:text-right bg-slate-50 p-3 sm:py-2.5 sm:px-4 rounded-2xl border border-slate-200/90 shrink-0 self-start sm:self-auto min-w-[190px]">
+            <span className="text-[11px] text-slate-500 block font-bold uppercase tracking-wider">
               ช่วงวันที่บันทึกสะสม
             </span>
-            <span className="text-sm font-black text-slate-800 block">
+            <span className="text-sm md:text-base font-black text-slate-900 block mt-0.5 font-mono">
               {formatThaiDate(startDate)} — {formatThaiDate(endDate)}
             </span>
-            <span className="text-[11px] text-blue-600 font-semibold block mt-0.5">
+            <span className="text-[11px] text-blue-600 font-bold block mt-0.5">
               รวมทั้งสิ้น {datesInRange.length} วัน
             </span>
           </div>
+
         </div>
 
         {/* ยอดไฮไลต์สะสม 4 มิติทางการเงิน */}
