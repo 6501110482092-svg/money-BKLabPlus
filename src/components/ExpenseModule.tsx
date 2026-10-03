@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { DailyRecord, ExpenseItem, OutLabItem, LabTestTemplate, Business } from '../types';
+import { DailyRecord, ExpenseItem, OutLabItem, LabTestTemplate, Business, FixCostItem } from '../types';
 import { formatNumber, getLastDayOfMonth, isLastDayOfMonth } from '../constants';
 import { loadLabTests, deduplicateExpenseItems } from '../utils/storage';
 import { subscribeToLabTests } from '../utils/firebase';
@@ -59,25 +59,62 @@ export default function ExpenseModule({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const prevRecordRef = useRef<string>('');
 
-  // ตรวจสอบวันสิ้นเดือน (Last Day of Month)
+  // ตรวจสอบวันสิ้นเดือน (Last Day of Month) และวันที่ปัจจุบันในเดือน
   const lastDayOfMonth = useMemo(() => getLastDayOfMonth(currentDate), [currentDate]);
   const isLastDay = useMemo(() => isLastDayOfMonth(currentDate), [currentDate]);
+
+  const currentDayNum = useMemo(() => {
+    if (!currentDate) return 1;
+    const parts = currentDate.split('-');
+    return parts.length >= 3 ? parseInt(parts[2], 10) : 1;
+  }, [currentDate]);
+
+  const totalDaysInCurrentMonth = useMemo(() => {
+    if (!currentDate) return 31;
+    const parts = currentDate.split('-');
+    if (parts.length >= 2) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      return new Date(y, m, 0).getDate();
+    }
+    return 31;
+  }, [currentDate]);
 
   // Fix Costs ประจำธุรกิจ
   const currentBizFixCosts = useMemo(() => {
     return activeBusiness?.fixCosts || [];
   }, [activeBusiness]);
 
-  // โหลดรายการและเติม Fix Cost ในวันสิ้นเดือนอย่างปลอดภัย (Deduplicated 100% ไม่ซ้ำซ้อน)
+  // ฟังก์ชันตรวจสอบว่า Fix Cost รายการนี้ถึงกำหนดลงบัญชีในวันที่ปัจจุบันหรือไม่
+  const isFixCostDueToday = (fc: FixCostItem) => {
+    if (!fc.dueDay || fc.dueDay === 'last_day') {
+      return isLastDay;
+    }
+    const targetDay = Number(fc.dueDay);
+    if (currentDayNum === targetDay) {
+      return true;
+    }
+    // หากเดือนนี้มีจำนวนวันน้อยกว่าวันที่กำหนด (เช่น กำหนดวันที่ 31 แต่เดือนนี้มี 30 หรือ 28 วัน) ให้ลงในวันสิ้นเดือน
+    if (targetDay > totalDaysInCurrentMonth && isLastDay) {
+      return true;
+    }
+    return false;
+  };
+
+  const dueFixCostsToday = useMemo(() => {
+    return currentBizFixCosts.filter(isFixCostDueToday);
+  }, [currentBizFixCosts, isLastDay, currentDayNum, totalDaysInCurrentMonth]);
+
+  // โหลดรายการและเติม Fix Cost ตามวันที่กำหนดของแต่ละรายการอย่างปลอดภัย (Deduplicated 100% ไม่ซ้ำซ้อน)
   useEffect(() => {
     let rawExpenses: ExpenseItem[] = deduplicateExpenseItems(record?.expenseItems || []);
 
-    // ถ้าเป็นวันสิ้นเดือน และมี fix costs ที่ยังไม่เคยลง ให้เติมเพิ่มเข้าตาราง
-    if (isLastDay && currentBizFixCosts.length > 0) {
+    // ถ้ามี Fix Cost ที่ถึงกำหนดลงในวันที่ปัจจุบัน (currentDate)
+    if (dueFixCostsToday.length > 0) {
       const existingNames = new Set(
         rawExpenses.map((item) => (item.description || '').trim().toLowerCase())
       );
-      const missingFixCosts = currentBizFixCosts.filter(
+      const missingFixCosts = dueFixCostsToday.filter(
         (fc) => !existingNames.has(fc.name.trim().toLowerCase())
       );
 
@@ -106,7 +143,7 @@ export default function ExpenseModule({
       setHasOutLab(record?.hasOutLab !== false);
       prevRecordRef.current = serializedRecord;
     }
-  }, [record, currentDate, isLastDay, currentBizFixCosts]);
+  }, [record, currentDate, dueFixCostsToday]);
 
   // ฟังก์ชันเติม Fix Cost ลงในตารางทันที (สำหรับกดสั่งเองหรือดึงมาใช้วันนี้)
   const handleForcePopulateFixCosts = () => {
@@ -429,7 +466,7 @@ export default function ExpenseModule({
             </div>
 
             {/* แถบแจ้งเตือน Fix Cost */}
-            {isLastDay ? (
+            {dueFixCostsToday.length > 0 ? (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 bg-blue-600 text-white rounded-lg shrink-0">
@@ -437,7 +474,7 @@ export default function ExpenseModule({
                   </span>
                   <div>
                     <span className="font-extrabold text-blue-900 block">
-                      📅 วันนี้คือวันสิ้นเดือน: ระบบลงรายการ Fix Cost ประจำเดือนของ "{activeBusiness?.name || 'ธุรกิจ'}" ไว้รอแล้ว
+                      🗓️ มี Fix Cost ถึงกำหนดลงบัญชีวันนี้ ({dueFixCostsToday.length} รายการ): ระบบลงรายการไว้รอเรียบร้อยแล้ว
                     </span>
                     <span className="text-[11px] text-blue-700/80">
                       รายการผันแปร (เช่น <strong>ค่าไฟ</strong>) สามารถพิมพ์ใส่จำนวนเงินในช่องยอดเงินได้เลยครับ
@@ -449,6 +486,7 @@ export default function ExpenseModule({
                     type="button"
                     onClick={handleForcePopulateFixCosts}
                     className="px-2.5 py-1 bg-white hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 transition-colors shadow-2xs cursor-pointer text-[11px]"
+                    title="เติมรายการ Fix Cost ซ้ำอีกครั้ง"
                   >
                     🔄 เติม Fix Cost ซ้ำ
                   </button>
@@ -460,21 +498,14 @@ export default function ExpenseModule({
                   <div className="flex items-center gap-2">
                     <Receipt size={14} className="text-slate-500 shrink-0" />
                     <span className="text-slate-600">
-                      💡 ธุรกิจนี้มี Fix Cost <strong>{currentBizFixCosts.length} รายการ</strong> (จะลงอัตโนมัติในวันสิ้นเดือน <strong>{lastDayOfMonth}</strong>)
+                      💡 ธุรกิจนี้มี Fix Cost <strong>{currentBizFixCosts.length} รายการ</strong> (ระบบจะลงบัญชีให้อัตโนมัติตามวันที่กำหนดไว้ของแต่ละรายการ)
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => onDateChange(lastDayOfMonth)}
-                      className="text-[11px] font-bold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 px-2 py-1 rounded-md border border-blue-200 transition-colors cursor-pointer"
-                    >
-                      📅 ไปวันสิ้นเดือน
-                    </button>
-                    <button
-                      type="button"
                       onClick={handleForcePopulateFixCosts}
-                      className="text-[11px] font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 px-2 py-1 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                      className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 bg-white hover:bg-blue-50 px-2 py-1 rounded-md border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                       title="ดึงรายการ Fix Cost ประจำเดือนมาลงในวันที่ปัจจุบันนี้ทันที"
                     >
                       📥 ดึงมาลงวันนี้

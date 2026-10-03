@@ -69,10 +69,12 @@ export default function ManageTestsModule({
   const [newFcName, setNewFcName] = useState('');
   const [newFcAmount, setNewFcAmount] = useState<string>(''); // เป็น string เพื่อให้เว้นว่างได้
   const [newFcType, setNewFcType] = useState<'cash' | 'transfer'>('cash');
+  const [newFcDueDay, setNewFcDueDay] = useState<number | 'last_day'>('last_day');
   const [editingFcId, setEditingFcId] = useState<string | null>(null);
   const [editFcName, setEditFcName] = useState('');
   const [editFcAmount, setEditFcAmount] = useState('');
   const [editFcType, setEditFcType] = useState<'cash' | 'transfer'>('cash');
+  const [editFcDueDay, setEditFcDueDay] = useState<number | 'last_day'>('last_day');
 
   // ซิงค์สเตทกับ props ถ้าส่งมา
   useEffect(() => {
@@ -225,6 +227,7 @@ export default function ManageTestsModule({
       name: newFcName.trim(),
       amount: parsedAmount,
       type: newFcType || 'cash',
+      dueDay: newFcDueDay || 'last_day',
     };
 
     const updatedBusinesses = businesses.map((b) => {
@@ -247,6 +250,7 @@ export default function ManageTestsModule({
     setNewFcName('');
     setNewFcAmount('');
     setNewFcType('cash');
+    setNewFcDueDay('last_day');
   };
 
   const handleStartEditFixCost = (fc: FixCostItem) => {
@@ -254,6 +258,7 @@ export default function ManageTestsModule({
     setEditFcName(fc.name);
     setEditFcAmount(fc.amount ? String(fc.amount) : '');
     setEditFcType(fc.type || 'cash');
+    setEditFcDueDay(fc.dueDay || 'last_day');
   };
 
   const handleSaveEditFixCost = (fcId: string) => {
@@ -269,6 +274,7 @@ export default function ManageTestsModule({
               name: editFcName.trim(),
               amount: parsedAmount,
               type: editFcType || 'cash',
+              dueDay: editFcDueDay || 'last_day',
             };
           }
           return fc;
@@ -310,14 +316,19 @@ export default function ManageTestsModule({
   };
 
   // ชิปเติมด่วนสำหรับ Fix Cost ที่พบบ่อย
-  const quickFixCostTemplates = [
-    { name: 'ค่าไฟฟ้า (ผันแปร)', amount: '' },
-    { name: 'ค่าน้ำประปา', amount: '350' },
-    { name: 'ค่าเช่าสถานที่ / คลินิก', amount: '15000' },
-    { name: 'ค่าอินเทอร์เน็ตคลินิก', amount: '799' },
-    { name: 'เงินเดือนพนักงาน', amount: '' },
-    { name: 'ค่าโปรแกรม / ซอฟต์แวร์คลินิก', amount: '1200' },
-    { name: 'ค่าบริการทำบัญชี / ตรวจสอบ', amount: '3000' },
+  const quickFixCostTemplates: {
+    name: string;
+    amount: string;
+    type?: 'cash' | 'transfer';
+    dueDay?: number | 'last_day';
+  }[] = [
+    { name: 'ค่าเช่าสถานที่ / คลินิก', amount: '15000', type: 'transfer', dueDay: 1 },
+    { name: 'ค่าไฟฟ้า (ผันแปร)', amount: '', type: 'transfer', dueDay: 20 },
+    { name: 'ค่าน้ำประปา', amount: '350', type: 'transfer', dueDay: 20 },
+    { name: 'ค่าอินเทอร์เน็ตคลินิก', amount: '799', type: 'transfer', dueDay: 15 },
+    { name: 'เงินเดือนพนักงาน', amount: '', type: 'transfer', dueDay: 'last_day' },
+    { name: 'ค่าโปรแกรม / ซอฟต์แวร์คลินิก', amount: '1200', type: 'transfer', dueDay: 'last_day' },
+    { name: 'ค่าบริการทำบัญชี / ตรวจสอบ', amount: '3000', type: 'transfer', dueDay: 'last_day' },
   ];
 
   // --- จัดการชุดตรวจ Autocomplete ---
@@ -719,10 +730,11 @@ export default function ManageTestsModule({
           <CalendarClock size={20} className="text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <span className="font-bold block">
-              การทำงานอัตโนมัติ: ใส่ข้อมูลไว้รอในวันสิ้นเดือนของสมุดบัญชี "{currentFixCostBiz?.name}"
+              การทำงานอัตโนมัติ: ใส่ข้อมูลไว้รอในวันที่กำหนดของแต่ละรายการในสมุดบัญชี "{currentFixCostBiz?.name}"
             </span>
             <p className="text-amber-800/90 leading-relaxed">
-              • รายการที่ระบุจำนวนเงินไว้ (เช่น ค่าเช่า 15,000) ระบบจะใส่ยอดเงินให้เลย<br />
+              • <strong>เลือกวันที่ลงบัญชีได้อิสระ:</strong> เช่น ค่าเช่าลงทุกวันที่ 1, ค่าเน็ตลงทุกวันที่ 15, ค่าไฟลงทุกวันที่ 20 หรือลงในวันสิ้นเดือน<br />
+              • รายการที่ระบุจำนวนเงินไว้ (เช่น ค่าเช่า 15,000) ระบบจะใส่ยอดเงินให้อัตโนมัติ<br />
               • รายการที่ไม่ระบุจำนวนเงิน หรือใส่ 0 (เช่น <strong>ค่าไฟฟ้า</strong> ที่ยอดไม่เท่ากันทุกเดือน) ระบบจะใส่ชื่อรายการไว้รอ โดยเว้นช่องยอดเงินไว้ ให้คุณไปพิมพ์ใส่จำนวนเงินภายหลังในหน้า <strong>"บันทึกรายจ่าย"</strong> ได้อย่างสะดวกรวดเร็ว
             </p>
           </div>
@@ -738,7 +750,7 @@ export default function ManageTestsModule({
           </div>
 
           <form onSubmit={handleAddFixCost} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-            <div className="md:col-span-5">
+            <div className="md:col-span-4">
               <label className="text-[10px] font-bold text-gray-600 block mb-1">
                 ชื่อรายการ Fix Cost *
               </label>
@@ -751,38 +763,60 @@ export default function ManageTestsModule({
                 className="w-full text-xs font-semibold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-amber-500 bg-white"
               />
             </div>
+
             <div className="md:col-span-3">
               <label className="text-[10px] font-bold text-gray-600 block mb-1">
-                ช่องทางจ่ายเงิน (ค่าเริ่มต้น: เงินสด)
+                ตั้งให้ลงบัญชีวันไหน
+              </label>
+              <select
+                value={newFcDueDay}
+                onChange={(e) =>
+                  setNewFcDueDay(e.target.value === 'last_day' ? 'last_day' : parseInt(e.target.value, 10))
+                }
+                className="w-full text-xs font-bold py-2 px-2.5 border border-gray-250 rounded-lg outline-none focus:border-amber-500 bg-white cursor-pointer shadow-2xs text-slate-800"
+              >
+                <option value="last_day">📅 วันสิ้นเดือน (ค่าเริ่มต้น)</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>
+                    🗓️ ทุกวันที่ {d} ของเดือน
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-bold text-gray-600 block mb-1">
+                ช่องทางจ่าย
               </label>
               <div className="inline-flex w-full p-0.5 bg-gray-200/80 rounded-lg border border-gray-200">
                 <button
                   type="button"
                   onClick={() => setNewFcType('cash')}
-                  className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                     newFcType === 'cash'
                       ? 'bg-white text-emerald-700 shadow-2xs'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
-                  💵 เงินสด
+                  💵 สด
                 </button>
                 <button
                   type="button"
                   onClick={() => setNewFcType('transfer')}
-                  className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  className={`flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                     newFcType === 'transfer'
                       ? 'bg-white text-blue-700 shadow-2xs'
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
-                  📲 เงินโอน
+                  📲 โอน
                 </button>
               </div>
             </div>
-            <div className="md:col-span-4">
+
+            <div className="md:col-span-3">
               <label className="text-[10px] font-bold text-gray-600 block mb-1">
-                จำนวนเงิน (บาท) <span className="text-gray-400 font-normal">(เว้นว่างได้ เช่น ค่าไฟ)</span>
+                จำนวนเงิน (บาท) <span className="text-gray-400 font-normal">(เว้นว่างได้)</span>
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -793,13 +827,13 @@ export default function ManageTestsModule({
                     onChange={(e) => setNewFcAmount(e.target.value)}
                     min="0"
                     step="any"
-                    className="w-full text-xs font-bold py-2 pr-6 pl-3 border border-gray-200 rounded-lg outline-none focus:border-amber-500 bg-white"
+                    className="w-full text-xs font-bold py-2 pr-6 pl-2.5 border border-gray-200 rounded-lg outline-none focus:border-amber-500 bg-white"
                   />
                   <span className="absolute right-2 top-2 text-xs text-gray-400">฿</span>
                 </div>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-3.5 rounded-lg transition-all flex items-center justify-center gap-1 shadow-sm shrink-0 cursor-pointer"
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1 shadow-sm shrink-0 cursor-pointer"
                 >
                   <Plus size={14} />
                   <span>เพิ่ม</span>
@@ -821,10 +855,15 @@ export default function ManageTestsModule({
                 onClick={() => {
                   setNewFcName(t.name);
                   setNewFcAmount(t.amount);
+                  if (t.type) setNewFcType(t.type);
+                  if (t.dueDay) setNewFcDueDay(t.dueDay);
                 }}
                 className="text-[11px] font-medium bg-white hover:bg-amber-50 hover:text-amber-800 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-amber-300 transition-all cursor-pointer"
               >
                 + {t.name} {t.amount ? `(฿${t.amount})` : '(ยอดผันแปร)'}
+                <span className="text-[10px] text-amber-700/80 font-bold ml-1">
+                  [{t.dueDay === 'last_day' ? 'สิ้นเดือน' : `วันที่ ${t.dueDay}`}]
+                </span>
               </button>
             ))}
           </div>
@@ -847,9 +886,9 @@ export default function ManageTestsModule({
                 <tr className="bg-amber-50/70 text-amber-950 font-bold border-b border-amber-200">
                   <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
                   <th className="py-2.5 px-4">ชื่อรายการ Fix Cost</th>
-                  <th className="py-2.5 px-3 w-32 text-center">ช่องทางจ่าย</th>
-                  <th className="py-2.5 px-4 text-right w-44">จำนวนเงินที่ตั้งไว้ (บาท)</th>
-                  <th className="py-2.5 px-4 text-center w-36">สถานะการลงบัญชี</th>
+                  <th className="py-2.5 px-3 w-28 text-center">ช่องทางจ่าย</th>
+                  <th className="py-2.5 px-4 text-right w-36">จำนวนเงินที่ตั้งไว้</th>
+                  <th className="py-2.5 px-4 text-center w-48">วันที่ลงบัญชีอัตโนมัติ</th>
                   <th className="py-2.5 px-3 text-right w-24">จัดการ</th>
                 </tr>
               </thead>
@@ -893,23 +932,40 @@ export default function ManageTestsModule({
                               value={editFcAmount}
                               onChange={(e) => setEditFcAmount(e.target.value)}
                               placeholder="เว้นว่างได้"
-                              className="w-28 text-xs font-bold py-1 px-2 text-right border border-gray-200 rounded outline-none focus:border-amber-500 bg-white"
+                              className="w-24 text-xs font-bold py-1 px-2 text-right border border-gray-200 rounded outline-none focus:border-amber-500 bg-white"
                             />
                           </td>
-                          <td className="py-2 px-4 text-center text-gray-400 text-[11px]">-</td>
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={editFcDueDay}
+                              onChange={(e) =>
+                                setEditFcDueDay(e.target.value === 'last_day' ? 'last_day' : parseInt(e.target.value, 10))
+                              }
+                              className="text-xs font-bold border border-gray-250 rounded px-2 py-1 bg-white outline-none focus:border-amber-500"
+                            >
+                              <option value="last_day">📅 วันสิ้นเดือน</option>
+                              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                                <option key={d} value={d}>
+                                  🗓️ ทุกวันที่ {d}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
                           <td className="py-2 px-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={() => handleSaveEditFixCost(fc.id)}
-                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer"
+                                title="บันทึกการแก้ไข"
                               >
                                 <Check size={14} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingFcId(null)}
-                                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                                className="p-1 text-gray-400 hover:bg-gray-100 rounded cursor-pointer"
+                                title="ยกเลิก"
                               >
                                 <X size={14} />
                               </button>
@@ -951,9 +1007,15 @@ export default function ManageTestsModule({
                           )}
                         </td>
                         <td className="py-2.5 px-4 text-center">
-                          <span className="text-[11px] text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                            📅 ลงวันสิ้นเดือนอัตโนมัติ
-                          </span>
+                          {!fc.dueDay || fc.dueDay === 'last_day' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-blue-700 font-bold bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 shadow-2xs">
+                              📅 วันสิ้นเดือนอัตโนมัติ
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-purple-700 font-bold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 shadow-2xs">
+                              🗓️ ทุกวันที่ {fc.dueDay} ของเดือน
+                            </span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">

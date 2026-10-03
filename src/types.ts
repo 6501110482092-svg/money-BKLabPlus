@@ -58,6 +58,7 @@ export interface FixCostItem {
   amount?: number; // จำนวนเงิน หากไม่ระบุ หรือ 0 หมายถึงยอดผันแปร เช่น ค่าไฟ ให้ผู้ใช้ไปกรอกทีหลัง
   note?: string; // หมายเหตุเพิ่มเติม
   type?: 'cash' | 'transfer'; // ช่องทางการจ่าย: 'cash' = เงินสด, 'transfer' = เงินโอน (ค่าเริ่มต้นเป็น 'cash')
+  dueDay?: number | 'last_day'; // วันที่ในแต่ละเดือนที่กำหนดให้ลงบัญชีอัตโนมัติ: 'last_day' (วันสิ้นเดือน) หรือ 1 - 31 (ค่าเริ่มต้น: 'last_day')
 }
 
 export interface Business {
