@@ -69,6 +69,7 @@ interface DetailedExpenseItem {
   date: string;
   description: string;
   amount: number;
+  type?: 'cash' | 'transfer';
 }
 
 interface DetailedOutLabItem {
@@ -98,6 +99,8 @@ interface GroupedExpense {
   description: string;
   count: number;
   totalAmount: number;
+  cashAmount?: number;
+  transferAmount?: number;
 }
 
 export default function SummaryReportModule({
@@ -381,6 +384,8 @@ export default function SummaryReportModule({
     totalRangeIncomeCash,
     totalRangeIncomeTransfer,
     totalRangeGeneralExpense,
+    totalRangeGeneralExpenseCash,
+    totalRangeGeneralExpenseTransfer,
     totalRangeOutLab,
     sortedOutLabList,
     groupedIncomeList,
@@ -394,11 +399,13 @@ export default function SummaryReportModule({
     let sumIncomeCash = 0;
     let sumIncomeTransfer = 0;
     let sumGeneralExp = 0;
+    let sumGeneralExpCash = 0;
+    let sumGeneralExpTransfer = 0;
     let sumOutLabExp = 0;
 
     const outLabGroupMap: Record<string, { count: number; totalAmount: number; prices: number[] }> = {};
     const incomeGroupMap: Record<string, { count: number; totalAmount: number; cashAmount: number; transferAmount: number }> = {};
-    const expenseGroupMap: Record<string, { count: number; totalAmount: number }> = {};
+    const expenseGroupMap: Record<string, { count: number; totalAmount: number; cashAmount: number; transferAmount: number }> = {};
 
     datesInRange.forEach((date) => {
       const rec = records[date];
@@ -439,6 +446,7 @@ export default function SummaryReportModule({
         (rec.expenseItems || []).forEach((item, idx) => {
           const amt = Number(item.amount) || 0;
           sumGeneralExp += amt;
+          const eType = item.type === 'transfer' ? 'transfer' : 'cash';
 
           const desc = (item.description || 'ไม่ได้ระบุชื่อรายการ').trim();
           expenses.push({
@@ -446,13 +454,21 @@ export default function SummaryReportModule({
             date,
             description: desc,
             amount: amt,
+            type: eType,
           });
 
           if (!expenseGroupMap[desc]) {
-            expenseGroupMap[desc] = { count: 0, totalAmount: 0 };
+            expenseGroupMap[desc] = { count: 0, totalAmount: 0, cashAmount: 0, transferAmount: 0 };
           }
           expenseGroupMap[desc].count += 1;
           expenseGroupMap[desc].totalAmount += amt;
+          if (eType === 'cash') {
+            sumGeneralExpCash += amt;
+            expenseGroupMap[desc].cashAmount = (expenseGroupMap[desc].cashAmount || 0) + amt;
+          } else {
+            sumGeneralExpTransfer += amt;
+            expenseGroupMap[desc].transferAmount = (expenseGroupMap[desc].transferAmount || 0) + amt;
+          }
         });
 
         // 3. Out-Lab
@@ -514,6 +530,8 @@ export default function SummaryReportModule({
         description: desc,
         count: g.count,
         totalAmount: g.totalAmount,
+        cashAmount: g.cashAmount || 0,
+        transferAmount: g.transferAmount || 0,
       };
     });
     sortedExpenseGroups.sort((a, b) => b.totalAmount - a.totalAmount);
@@ -526,6 +544,8 @@ export default function SummaryReportModule({
       totalRangeIncomeCash: sumIncomeCash,
       totalRangeIncomeTransfer: sumIncomeTransfer,
       totalRangeGeneralExpense: sumGeneralExp,
+      totalRangeGeneralExpenseCash: sumGeneralExpCash,
+      totalRangeGeneralExpenseTransfer: sumGeneralExpTransfer,
       totalRangeOutLab: sumOutLabExp,
       sortedOutLabList: sortedOutLabs,
       groupedIncomeList: sortedIncomeGroups,
@@ -558,7 +578,8 @@ export default function SummaryReportModule({
     return allExpenseItems.filter(
       (item) =>
         item.description.toLowerCase().includes(term) ||
-        item.date.includes(term)
+        item.date.includes(term) ||
+        (item.type === 'transfer' ? 'เงินโอน โอน' : 'เงินสด สด').includes(term)
     );
   }, [allExpenseItems, searchTerm]);
 
@@ -622,6 +643,8 @@ export default function SummaryReportModule({
       ['- รายรับเงินสดสะสม', totalRangeIncomeCash],
       ['- รายรับเงินโอนสะสม', totalRangeIncomeTransfer],
       ['รายจ่ายทั่วไปรวมสะสม', totalRangeGeneralExpense],
+      ['- รายจ่ายเงินสดสะสม', totalRangeGeneralExpenseCash],
+      ['- รายจ่ายเงินโอนสะสม', totalRangeGeneralExpenseTransfer],
       ['รายจ่ายส่งแล็บนอก (Out-Lab) สะสม', totalRangeOutLab],
       ['ค่าใช้จ่ายรวมทั้งหมดสะสม', totalRangeExpense],
       ['รายได้สุทธิสะสม (Net Profit)', netProfit],
@@ -657,18 +680,21 @@ export default function SummaryReportModule({
     if (showExpenseDetails) {
       dataSections.push(
         ['[2] รายละเอียดรายการรายจ่ายทั่วไป (General Expense Details)'],
-        ['ลำดับ', 'วันที่', 'ชื่อรายการรายจ่าย', 'จำนวนเงิน (บาท)']
+        ['ลำดับ', 'วันที่', 'ชื่อรายการรายจ่าย', 'ช่องทางชำระเงิน', 'จำนวนเงิน (บาท)']
       );
       allExpenseItems.forEach((item, index) => {
         dataSections.push([
           index + 1,
           item.date,
           item.description,
+          item.type === 'transfer' ? 'เงินโอน' : 'เงินสด',
           item.amount,
         ]);
       });
       dataSections.push(
-        ['รวมรายจ่ายทั่วไปทั้งหมด', '', '', totalRangeGeneralExpense],
+        ['รวมรายจ่ายเงินสด', '', '', '', totalRangeGeneralExpenseCash],
+        ['รวมรายจ่ายเงินโอน', '', '', '', totalRangeGeneralExpenseTransfer],
+        ['รวมรายจ่ายทั่วไปทั้งหมด', '', '', '', totalRangeGeneralExpense],
         []
       );
     }
@@ -1065,9 +1091,10 @@ export default function SummaryReportModule({
             <div className="text-2xl font-black text-rose-600">
               ฿{formatNumber(totalRangeGeneralExpense)}
             </div>
-            <span className="text-[11px] text-rose-700/80 block mt-1 font-medium">
-              ค่าน้ำ ยา เวชภัณฑ์ ({allExpenseItems.length} รายการ)
-            </span>
+            <div className="text-[11px] text-rose-700/80 mt-1 flex items-center justify-between font-medium">
+              <span>เงินสด: ฿{formatNumber(totalRangeGeneralExpenseCash)}</span>
+              <span>โอน: ฿{formatNumber(totalRangeGeneralExpenseTransfer)}</span>
+            </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-amber-100/30 border border-amber-150">
@@ -1351,13 +1378,14 @@ export default function SummaryReportModule({
                       <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
                       <th className="py-2.5 px-3 w-28">วันที่</th>
                       <th className="py-2.5 px-4">ชื่อรายการรายจ่าย</th>
+                      <th className="py-2.5 px-3 text-center w-24">ช่องทาง</th>
                       <th className="py-2.5 px-4 text-right w-40">จำนวนเงิน (บาท)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-slate-700">
                     {filteredExpenseItems.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-gray-400">
+                        <td colSpan={5} className="py-8 text-center text-gray-400">
                           ไม่พบรายการรายจ่ายทั่วไปในช่วงวันที่เลือก
                         </td>
                       </tr>
@@ -1373,6 +1401,17 @@ export default function SummaryReportModule({
                           <td className="py-2.5 px-4 font-semibold text-slate-900">
                             {item.description}
                           </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.type === 'transfer'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {item.type === 'transfer' ? '📲 โอน' : '💵 สด'}
+                            </span>
+                          </td>
                           <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
                             ฿{formatNumber(item.amount)}
                           </td>
@@ -1381,8 +1420,20 @@ export default function SummaryReportModule({
                     )}
                   </tbody>
                   <tfoot>
+                    <tr className="bg-emerald-50/30 text-[11px] text-gray-700 border-t border-rose-150">
+                      <td colSpan={4} className="py-1.5 px-4 text-right font-medium">รวมจ่ายเงินสด (Cash Expense):</td>
+                      <td className="py-1.5 px-4 text-right text-emerald-800 font-mono font-bold">
+                        ฿{formatNumber(totalRangeGeneralExpenseCash)}
+                      </td>
+                    </tr>
+                    <tr className="bg-blue-50/30 text-[11px] text-gray-700 border-t border-rose-100">
+                      <td colSpan={4} className="py-1.5 px-4 text-right font-medium">รวมจ่ายเงินโอน (Transfer Expense):</td>
+                      <td className="py-1.5 px-4 text-right text-blue-800 font-mono font-bold">
+                        ฿{formatNumber(totalRangeGeneralExpenseTransfer)}
+                      </td>
+                    </tr>
                     <tr className="bg-rose-50/60 font-black text-slate-900 border-t-2 border-rose-200">
-                      <td colSpan={3} className="py-3 px-4 text-right">
+                      <td colSpan={4} className="py-3 px-4 text-right">
                         สรุปผลรวมรายจ่ายทั่วไป ({filteredExpenseItems.length} รายการ):
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-rose-700 text-sm">
@@ -1398,14 +1449,15 @@ export default function SummaryReportModule({
                     <tr className="bg-rose-50/80 text-rose-950 font-bold border-b border-rose-200">
                       <th className="py-2.5 px-4">ชื่อรายการรายจ่าย</th>
                       <th className="py-2.5 px-3 text-center">จำนวนครั้ง</th>
-                      <th className="py-2.5 px-4 text-right">ราคาเฉลี่ยต่อครั้ง</th>
+                      <th className="py-2.5 px-4 text-right">เงินสด (บาท)</th>
+                      <th className="py-2.5 px-4 text-right">เงินโอน (บาท)</th>
                       <th className="py-2.5 px-4 text-right">ยอดรวม (บาท)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-slate-700">
                     {groupedExpenseList.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-gray-400">
+                        <td colSpan={5} className="py-8 text-center text-gray-400">
                           ไม่พบรายการรายจ่ายทั่วไปในช่วงวันที่เลือก
                         </td>
                       </tr>
@@ -1421,8 +1473,11 @@ export default function SummaryReportModule({
                               {item.count}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 text-right font-mono text-slate-500">
-                            ฿{formatNumber(item.count > 0 ? item.totalAmount / item.count : 0)}
+                          <td className="py-2.5 px-4 text-right font-mono text-emerald-700">
+                            ฿{formatNumber(item.cashAmount || 0)}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-blue-700">
+                            ฿{formatNumber(item.transferAmount || 0)}
                           </td>
                           <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-700">
                             ฿{formatNumber(item.totalAmount)}
@@ -1437,7 +1492,12 @@ export default function SummaryReportModule({
                       <td className="py-3 px-3 text-center font-bold text-slate-700">
                         {allExpenseItems.length} ครั้ง
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-500">-</td>
+                      <td className="py-3 px-4 text-right font-mono text-emerald-700">
+                        ฿{formatNumber(totalRangeGeneralExpenseCash)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-blue-700">
+                        ฿{formatNumber(totalRangeGeneralExpenseTransfer)}
+                      </td>
                       <td className="py-3 px-4 text-right font-mono text-rose-700 text-sm">
                         ฿{formatNumber(totalRangeGeneralExpense)}
                       </td>

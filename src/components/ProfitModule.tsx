@@ -213,9 +213,19 @@ export default function ProfitModule({
 
   const dailyTotalIncome = dailyCashIncome + dailyTransferIncome;
 
-  const dailyGeneralExpense = useMemo(() => {
-    return (dailyRecord.expenseItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const dailyCashExpense = useMemo(() => {
+    return (dailyRecord.expenseItems || [])
+      .filter((item) => item.type !== 'transfer')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   }, [dailyRecord]);
+
+  const dailyTransferExpense = useMemo(() => {
+    return (dailyRecord.expenseItems || [])
+      .filter((item) => item.type === 'transfer')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [dailyRecord]);
+
+  const dailyGeneralExpense = dailyCashExpense + dailyTransferExpense;
 
   const dailyOutLabExpense = useMemo(() => {
     if (dailyRecord.hasOutLab === false) return 0;
@@ -224,7 +234,8 @@ export default function ProfitModule({
 
   const dailyTotalExpense = dailyGeneralExpense + dailyOutLabExpense;
   const dailyNetProfit = dailyTotalIncome - dailyTotalExpense;
-  const dailyExpectedCash = dailyCashIncome - dailyTotalExpense;
+  // ยอดเงินสดในเกะตามระบบที่ควรจะมี = รับเงินสด - จ่ายเงินสด - Out-Lab (ไม่หักรายจ่ายเงินโอน)
+  const dailyExpectedCash = dailyCashIncome - dailyCashExpense - dailyOutLabExpense;
 
   // --- คำนวณยอดเงินของโหมดช่วงวันที่ (Date Range / Month) ---
   const rangeData = useMemo(() => {
@@ -237,6 +248,8 @@ export default function ProfitModule({
 
     let totalCashInc = 0;
     let totalTransferInc = 0;
+    let totalCashExp = 0;
+    let totalTransferExp = 0;
     let totalGenExp = 0;
     let totalOutLabExp = 0;
     let daysWithRecords = 0;
@@ -249,6 +262,8 @@ export default function ProfitModule({
           cashIncome: 0,
           transferIncome: 0,
           totalIncome: 0,
+          cashExpense: 0,
+          transferExpense: 0,
           generalExpense: 0,
           outLabExpense: 0,
           totalExpense: 0,
@@ -267,7 +282,15 @@ export default function ProfitModule({
       const tInc = (rec.incomeItems || [])
         .filter((i) => i.type === 'transfer')
         .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-      const gExp = (rec.expenseItems || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+      const cExp = (rec.expenseItems || [])
+        .filter((i) => i.type !== 'transfer')
+        .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      const tExp = (rec.expenseItems || [])
+        .filter((i) => i.type === 'transfer')
+        .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+      const gExp = cExp + tExp;
       const oExp = rec.hasOutLab !== false
         ? (rec.outLabItems || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
         : 0;
@@ -275,10 +298,13 @@ export default function ProfitModule({
       const totInc = cInc + tInc;
       const totExp = gExp + oExp;
       const profit = totInc - totExp;
-      const expCash = cInc - totExp;
+      // เงินสดควรมีในเกะ = รับสด - จ่ายสด - OutLab
+      const expCash = cInc - cExp - oExp;
 
       totalCashInc += cInc;
       totalTransferInc += tInc;
+      totalCashExp += cExp;
+      totalTransferExp += tExp;
       totalGenExp += gExp;
       totalOutLabExp += oExp;
 
@@ -287,6 +313,8 @@ export default function ProfitModule({
         cashIncome: cInc,
         transferIncome: tInc,
         totalIncome: totInc,
+        cashExpense: cExp,
+        transferExpense: tExp,
         generalExpense: gExp,
         outLabExpense: oExp,
         totalExpense: totExp,
@@ -301,7 +329,8 @@ export default function ProfitModule({
     const totalInc = totalCashInc + totalTransferInc;
     const totalExp = totalGenExp + totalOutLabExp;
     const netProf = totalInc - totalExp;
-    const expCash = totalCashInc - totalExp;
+    // เงินสดสะสมควรมีในเกะ = รวมรับสด - รวมจ่ายสด - รวม Out-Lab
+    const expCash = totalCashInc - totalCashExp - totalOutLabExp;
 
     return {
       startDate: s,
@@ -310,6 +339,8 @@ export default function ProfitModule({
       daysWithRecords,
       totalCashIncome: totalCashInc,
       totalTransferIncome: totalTransferInc,
+      totalCashExpense: totalCashExp,
+      totalTransferExpense: totalTransferExp,
       totalIncome: totalInc,
       totalGeneralExpense: totalGenExp,
       totalOutLabExpense: totalOutLabExp,
@@ -329,6 +360,8 @@ export default function ProfitModule({
         cashIncome: dailyCashIncome,
         transferIncome: dailyTransferIncome,
         totalIncome: dailyTotalIncome,
+        cashExpense: dailyCashExpense,
+        transferExpense: dailyTransferExpense,
         generalExpense: dailyGeneralExpense,
         outLabExpense: dailyOutLabExpense,
         totalExpense: dailyTotalExpense,
@@ -345,6 +378,8 @@ export default function ProfitModule({
       cashIncome: rangeData.totalCashIncome,
       transferIncome: rangeData.totalTransferIncome,
       totalIncome: rangeData.totalIncome,
+      cashExpense: rangeData.totalCashExpense,
+      transferExpense: rangeData.totalTransferExpense,
       generalExpense: rangeData.totalGeneralExpense,
       outLabExpense: rangeData.totalOutLabExpense,
       totalExpense: rangeData.totalExpense,
@@ -359,6 +394,8 @@ export default function ProfitModule({
     dailyCashIncome,
     dailyTransferIncome,
     dailyTotalIncome,
+    dailyCashExpense,
+    dailyTransferExpense,
     dailyGeneralExpense,
     dailyOutLabExpense,
     dailyTotalExpense,
@@ -781,14 +818,27 @@ export default function ProfitModule({
                       ฿ {formatNumber(activeFinancials.totalExpense)}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex flex-col gap-1">
+                  <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex flex-col gap-1.5">
                     <div className="flex justify-between">
-                      <span className="text-slate-600 font-semibold">จ่ายทั่วไป:</span>
-                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.generalExpense)}</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span>จ่ายเงินสด (หักจากเกะ):</span>
+                      </span>
+                      <span className="font-bold font-mono text-emerald-800">฿ {formatNumber(activeFinancials.cashExpense)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-rose-700 font-semibold">Out-Lab (แล็บนอก):</span>
-                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.outLabExpense)}</span>
+                      <span className="text-blue-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        <span>จ่ายเงินโอน (ตัดบัญชี):</span>
+                      </span>
+                      <span className="font-bold font-mono text-blue-800">฿ {formatNumber(activeFinancials.transferExpense)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-rose-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        <span>Out-Lab (แล็บนอก):</span>
+                      </span>
+                      <span className="font-bold font-mono text-rose-800">฿ {formatNumber(activeFinancials.outLabExpense)}</span>
                     </div>
                   </div>
                 </div>
@@ -865,11 +915,18 @@ export default function ProfitModule({
                       ฿ {formatNumber(activeFinancials.expectedCash)}
                     </span>
                     <span className="text-[11px] text-slate-400 font-medium">
-                      (เงินสดคงเหลือสุทธิ)
+                      (เงินสดในเกะที่ควรมีจริง)
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 pt-1.5 border-t border-slate-800 leading-relaxed font-mono">
-                    คำนวณจาก: รับเงินสด (฿{formatNumber(activeFinancials.cashIncome)}) - จ่ายรวม (฿{formatNumber(activeFinancials.totalExpense)})
+                  <div className="text-[11px] text-slate-300 pt-1.5 border-t border-slate-800 leading-relaxed font-mono space-y-1">
+                    <div>
+                      คำนวณจาก: รับเงินสด (฿{formatNumber(activeFinancials.cashIncome)}) - จ่ายเงินสด (฿{formatNumber(activeFinancials.cashExpense)}){activeFinancials.outLabExpense > 0 ? ` - Out-Lab (฿${formatNumber(activeFinancials.outLabExpense)})` : ''}
+                    </div>
+                    {activeFinancials.transferExpense > 0 && (
+                      <div className="text-[10px] text-blue-300 font-sans font-semibold">
+                        💡 มีรายจ่ายเงินโอน ฿{formatNumber(activeFinancials.transferExpense)} (ตัดจากบัญชีธนาคาร ไม่ได้หักจากเกะเงินสด)
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1010,11 +1067,12 @@ export default function ProfitModule({
                       <th className="p-3 font-bold text-right">รับสด (฿)</th>
                       <th className="p-3 font-bold text-right">รับโอน (฿)</th>
                       <th className="p-3 font-bold text-right">รายรับรวม (฿)</th>
-                      <th className="p-3 font-bold text-right">จ่ายทั่วไป (฿)</th>
+                      <th className="p-3 font-bold text-right text-emerald-300">จ่ายสด (฿)</th>
+                      <th className="p-3 font-bold text-right text-blue-300">จ่ายโอน (฿)</th>
                       <th className="p-3 font-bold text-right">Out-Lab (฿)</th>
                       <th className="p-3 font-bold text-right">จ่ายรวม (฿)</th>
                       <th className="p-3 font-bold text-right">กำไรสุทธิ (฿)</th>
-                      <th className="p-3 font-bold text-right">เงินสดควรมี (฿)</th>
+                      <th className="p-3 font-bold text-right text-emerald-300">เงินสดควรมีในเกะ (฿)</th>
                       <th className="p-3 font-bold text-center">ตรวจนับรายวัน</th>
                       <th className="p-3 font-bold text-center print:hidden">การกระทำ</th>
                     </tr>
@@ -1039,8 +1097,11 @@ export default function ProfitModule({
                         <td className="p-3 font-mono text-right font-black text-slate-900 bg-slate-50/80">
                           {formatNumber(item.totalIncome)}
                         </td>
-                        <td className="p-3 font-mono text-right text-slate-700">
-                          {formatNumber(item.generalExpense)}
+                        <td className="p-3 font-mono text-right text-emerald-700 font-bold">
+                          {formatNumber(item.cashExpense)}
+                        </td>
+                        <td className="p-3 font-mono text-right text-blue-700 font-bold">
+                          {formatNumber(item.transferExpense)}
                         </td>
                         <td className="p-3 font-mono text-right text-rose-700 font-semibold">
                           {formatNumber(item.outLabExpense)}
@@ -1053,7 +1114,7 @@ export default function ProfitModule({
                         }`}>
                           {formatNumber(item.netProfit)}
                         </td>
-                        <td className="p-3 font-mono text-right font-bold text-slate-800">
+                        <td className="p-3 font-mono text-right font-black text-emerald-800 bg-emerald-50/40">
                           {formatNumber(item.expectedCash)}
                         </td>
                         <td className="p-3 text-center whitespace-nowrap">
@@ -1094,8 +1155,11 @@ export default function ProfitModule({
                       <td className="p-3 font-mono text-right text-white">
                         {formatNumber(rangeData.totalIncome)}
                       </td>
-                      <td className="p-3 font-mono text-right text-slate-300">
-                        {formatNumber(rangeData.totalGeneralExpense)}
+                      <td className="p-3 font-mono text-right text-emerald-300">
+                        {formatNumber(rangeData.totalCashExpense)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-blue-300">
+                        {formatNumber(rangeData.totalTransferExpense)}
                       </td>
                       <td className="p-3 font-mono text-right text-rose-400">
                         {formatNumber(rangeData.totalOutLabExpense)}

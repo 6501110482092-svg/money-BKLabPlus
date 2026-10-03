@@ -68,9 +68,11 @@ export default function ManageTestsModule({
   const [selectedFixCostBizId, setSelectedFixCostBizId] = useState<string>(() => propActiveBusinessId || businesses[0]?.id || 'clinic-main');
   const [newFcName, setNewFcName] = useState('');
   const [newFcAmount, setNewFcAmount] = useState<string>(''); // เป็น string เพื่อให้เว้นว่างได้
+  const [newFcType, setNewFcType] = useState<'cash' | 'transfer'>('cash');
   const [editingFcId, setEditingFcId] = useState<string | null>(null);
   const [editFcName, setEditFcName] = useState('');
   const [editFcAmount, setEditFcAmount] = useState('');
+  const [editFcType, setEditFcType] = useState<'cash' | 'transfer'>('cash');
 
   // ซิงค์สเตทกับ props ถ้าส่งมา
   useEffect(() => {
@@ -222,6 +224,7 @@ export default function ManageTestsModule({
       id: `fc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: newFcName.trim(),
       amount: parsedAmount,
+      type: newFcType || 'cash',
     };
 
     const updatedBusinesses = businesses.map((b) => {
@@ -243,12 +246,14 @@ export default function ManageTestsModule({
 
     setNewFcName('');
     setNewFcAmount('');
+    setNewFcType('cash');
   };
 
   const handleStartEditFixCost = (fc: FixCostItem) => {
     setEditingFcId(fc.id);
     setEditFcName(fc.name);
     setEditFcAmount(fc.amount ? String(fc.amount) : '');
+    setEditFcType(fc.type || 'cash');
   };
 
   const handleSaveEditFixCost = (fcId: string) => {
@@ -263,6 +268,7 @@ export default function ManageTestsModule({
               ...fc,
               name: editFcName.trim(),
               amount: parsedAmount,
+              type: editFcType || 'cash',
             };
           }
           return fc;
@@ -731,8 +737,8 @@ export default function ManageTestsModule({
             </span>
           </div>
 
-          <form onSubmit={handleAddFixCost} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2">
+          <form onSubmit={handleAddFixCost} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            <div className="md:col-span-5">
               <label className="text-[10px] font-bold text-gray-600 block mb-1">
                 ชื่อรายการ Fix Cost *
               </label>
@@ -745,7 +751,36 @@ export default function ManageTestsModule({
                 className="w-full text-xs font-semibold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-amber-500 bg-white"
               />
             </div>
-            <div>
+            <div className="md:col-span-3">
+              <label className="text-[10px] font-bold text-gray-600 block mb-1">
+                ช่องทางจ่ายเงิน (ค่าเริ่มต้น: เงินสด)
+              </label>
+              <div className="inline-flex w-full p-0.5 bg-gray-200/80 rounded-lg border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setNewFcType('cash')}
+                  className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                    newFcType === 'cash'
+                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  💵 เงินสด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewFcType('transfer')}
+                  className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                    newFcType === 'transfer'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  📲 เงินโอน
+                </button>
+              </div>
+            </div>
+            <div className="md:col-span-4">
               <label className="text-[10px] font-bold text-gray-600 block mb-1">
                 จำนวนเงิน (บาท) <span className="text-gray-400 font-normal">(เว้นว่างได้ เช่น ค่าไฟ)</span>
               </label>
@@ -764,10 +799,10 @@ export default function ManageTestsModule({
                 </div>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-1 shadow-sm shrink-0 cursor-pointer"
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-3.5 rounded-lg transition-all flex items-center justify-center gap-1 shadow-sm shrink-0 cursor-pointer"
                 >
                   <Plus size={14} />
-                  <span>เพิ่มรายการ</span>
+                  <span>เพิ่ม</span>
                 </button>
               </div>
             </div>
@@ -812,6 +847,7 @@ export default function ManageTestsModule({
                 <tr className="bg-amber-50/70 text-amber-950 font-bold border-b border-amber-200">
                   <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
                   <th className="py-2.5 px-4">ชื่อรายการ Fix Cost</th>
+                  <th className="py-2.5 px-3 w-32 text-center">ช่องทางจ่าย</th>
                   <th className="py-2.5 px-4 text-right w-44">จำนวนเงินที่ตั้งไว้ (บาท)</th>
                   <th className="py-2.5 px-4 text-center w-36">สถานะการลงบัญชี</th>
                   <th className="py-2.5 px-3 text-right w-24">จัดการ</th>
@@ -820,7 +856,7 @@ export default function ManageTestsModule({
               <tbody className="divide-y divide-gray-100 text-slate-700">
                 {currentFixCosts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-gray-400">
+                    <td colSpan={6} className="py-10 text-center text-gray-400">
                       ยังไม่มีรายการ Fix Cost ประจำเดือนสำหรับธุรกิจนี้ (สามารถเพิ่มจากฟอร์มด้านบนได้เลยครับ)
                     </td>
                   </tr>
@@ -840,6 +876,16 @@ export default function ManageTestsModule({
                               onChange={(e) => setEditFcName(e.target.value)}
                               className="w-full text-xs font-semibold py-1 px-2 border border-gray-200 rounded outline-none focus:border-amber-500 bg-white"
                             />
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <select
+                              value={editFcType}
+                              onChange={(e) => setEditFcType(e.target.value as 'cash' | 'transfer')}
+                              className="text-xs font-bold border border-gray-250 rounded px-2 py-1 bg-white outline-none focus:border-amber-500"
+                            >
+                              <option value="cash">💵 เงินสด</option>
+                              <option value="transfer">📲 เงินโอน</option>
+                            </select>
                           </td>
                           <td className="py-2 px-4 text-right">
                             <input
@@ -881,6 +927,17 @@ export default function ManageTestsModule({
                         <td className="py-2.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full ${isVariable ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                           <span>{fc.name}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {fc.type === 'transfer' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                              📲 เงินโอน
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              💵 เงินสด
+                            </span>
+                          )}
                         </td>
                         <td className="py-2.5 px-4 text-right font-mono">
                           {isVariable ? (

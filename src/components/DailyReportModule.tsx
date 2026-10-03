@@ -50,13 +50,20 @@ export default function DailyReportModule({
   const totalIncome = cashIncome + transferIncome;
 
   // แบ่งฝั่งรายจ่าย
-  const totalGeneralExpense = expenseItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const cashGeneralExpense = expenseItems
+    .filter((item) => item.type !== 'transfer')
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const transferGeneralExpense = expenseItems
+    .filter((item) => item.type === 'transfer')
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const totalGeneralExpense = cashGeneralExpense + transferGeneralExpense;
   const totalOutLab = hasOutLab ? outLabItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) : 0;
   const totalExpense = totalGeneralExpense + totalOutLab;
 
   // กำไรสุทธิและการตรวจสอบเงินสด
   const netProfit = totalIncome - totalExpense;
-  const expectedCash = cashIncome - totalGeneralExpense - totalOutLab;
+  // ยอดเงินสดในเกะตามระบบที่ควรจะมี = รับเงินสด - จ่ายเงินสด - Out-Lab (ไม่หักรายจ่ายเงินโอน)
+  const expectedCash = cashIncome - cashGeneralExpense - totalOutLab;
   const countedCash = record.cashCheck?.countedCash || 0;
   const diff = countedCash - expectedCash;
   const isCorrect = Math.abs(diff) < 0.01;
@@ -412,13 +419,14 @@ export default function DailyReportModule({
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
                     <th className="py-2.5 px-3">รายการรายจ่าย</th>
+                    <th className="py-2.5 px-3 text-center">ช่องทาง</th>
                     <th className="py-2.5 px-3 text-right">จำนวน (บาท)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
                   {expenseItems.length === 0 ? (
                     <tr>
-                      <td colSpan={2} className="py-8 text-center text-gray-400">
+                      <td colSpan={3} className="py-8 text-center text-gray-400">
                         ไม่มีค่าใช้จ่ายทั่วไปสะสม
                       </td>
                     </tr>
@@ -426,6 +434,17 @@ export default function DailyReportModule({
                     expenseItems.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50/50">
                         <td className="py-2 px-3 font-medium">{item.description || '-'}</td>
+                        <td className="py-2 px-3 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.type === 'transfer'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {item.type === 'transfer' ? 'โอน' : 'สด'}
+                          </span>
+                        </td>
                         <td className="py-2 px-3 text-right font-mono font-medium text-rose-600">
                           {formatNumber(item.amount)}
                         </td>
@@ -434,8 +453,20 @@ export default function DailyReportModule({
                   )}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t border-gray-150">
-                    <td className="py-2.5 px-3 text-right">ยอดรวมรายจ่ายทั่วไป:</td>
+                  <tr className="bg-emerald-50/20 text-[11px] text-gray-700 border-t border-gray-150">
+                    <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินสด (หักเกะ):</td>
+                    <td className="py-1.5 px-3 text-right text-emerald-800 font-mono font-bold">
+                      {formatNumber(cashGeneralExpense)}
+                    </td>
+                  </tr>
+                  <tr className="bg-blue-50/20 text-[11px] text-gray-700 border-t border-gray-100">
+                    <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินโอน (ตัดบัญชี):</td>
+                    <td className="py-1.5 px-3 text-right text-blue-800 font-mono font-bold">
+                      {formatNumber(transferGeneralExpense)}
+                    </td>
+                  </tr>
+                  <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t-2 border-gray-200">
+                    <td colSpan={2} className="py-2.5 px-3 text-right">ยอดรวมรายจ่ายทั่วไป:</td>
                     <td className="py-2.5 px-3 text-right text-rose-700 font-mono">
                       {formatNumber(totalGeneralExpense)}
                     </td>

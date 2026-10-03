@@ -86,6 +86,7 @@ export default function ExpenseModule({
           id: `gen-fix-${fc.id || Date.now()}-${idx}`,
           description: fc.name,
           amount: fc.amount || 0,
+          type: fc.type || 'cash',
         }));
         rawExpenses = [...rawExpenses, ...newFixItems];
       }
@@ -130,6 +131,7 @@ export default function ExpenseModule({
       id: `gen-fix-${Date.now()}-${idx}`,
       description: fc.name,
       amount: fc.amount || 0,
+      type: fc.type || 'cash',
     }));
 
     setGeneralExpenses(deduplicateExpenseItems([...generalExpenses, ...newFixItems]));
@@ -214,6 +216,7 @@ export default function ExpenseModule({
       id: `gen-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       description: '',
       amount: 0,
+      type: 'cash',
     };
     setGeneralExpenses([...generalExpenses, newItem]);
     setTimeout(() => {
@@ -268,7 +271,13 @@ export default function ExpenseModule({
     setHasOutLab(!hasOutLab);
   };
 
-  const totalGeneral = generalExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const totalCashExpense = generalExpenses
+    .filter((item) => item.type !== 'transfer')
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const totalTransferExpense = generalExpenses
+    .filter((item) => item.type === 'transfer')
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const totalGeneral = totalCashExpense + totalTransferExpense;
   const totalOutLab = hasOutLab
     ? outLabExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
     : 0;
@@ -507,8 +516,28 @@ export default function ExpenseModule({
                         onKeyDown={handleGeneralKeyDown}
                       />
 
+                      {/* ปุ่มเลือกช่องทางจ่าย: เงินสด (ค่าเริ่มต้น) หรือ เงินโอน (คลิกเพื่อสลับ) */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleGeneralChange(
+                            index,
+                            'type',
+                            item.type === 'transfer' ? 'cash' : 'transfer'
+                          )
+                        }
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0 border shadow-2xs ${
+                          item.type === 'transfer'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                        title={`คลิกเพื่อสลับ (ปัจจุบัน: ${item.type === 'transfer' ? 'เงินโอน' : 'เงินสด'})`}
+                      >
+                        <span>{item.type === 'transfer' ? '📲 โอน' : '💵 สด'}</span>
+                      </button>
+
                       {/* ช่องกรอกจำนวนเงิน พร้อมป้ายเตือนกรณีค่าไฟหรือยอดผันแปรที่รอใส่ตัวเลข */}
-                      <div className="relative w-36">
+                      <div className="relative w-32 sm:w-36">
                         <input
                           type="number"
                           className={`w-full text-right text-sm border focus:border-rose-500 focus:ring-1 focus:ring-rose-200 outline-none py-1.5 pr-6 pl-3 rounded-lg ${
@@ -538,9 +567,25 @@ export default function ExpenseModule({
             )}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-gray-100 bg-gray-50/70 p-3 rounded-xl flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-500">รวมรายจ่ายทั่วไป:</span>
-            <span className="text-lg font-bold text-rose-600">฿ {formatNumber(totalGeneral)}</span>
+          <div className="mt-6 pt-4 border-t border-gray-100 bg-gray-50/70 p-3.5 rounded-xl space-y-1.5">
+            <div className="flex justify-between items-center text-xs text-slate-600">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>จ่ายเงินสด (หักจากเกะเงินสด):</span>
+              </span>
+              <span className="font-bold font-mono text-emerald-800">฿ {formatNumber(totalCashExpense)}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-600">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                <span>จ่ายเงินโอน (ตัดผ่านบัญชีธนาคาร):</span>
+              </span>
+              <span className="font-bold font-mono text-blue-800">฿ {formatNumber(totalTransferExpense)}</span>
+            </div>
+            <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+              <span className="text-sm font-bold text-gray-700">รวมรายจ่ายทั่วไปทั้งหมด:</span>
+              <span className="text-lg font-black text-rose-600">฿ {formatNumber(totalGeneral)}</span>
+            </div>
           </div>
         </div>
 

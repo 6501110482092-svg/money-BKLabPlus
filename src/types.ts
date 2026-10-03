@@ -14,6 +14,7 @@ export interface ExpenseItem {
   id: string;
   description: string;
   amount: number;
+  type?: 'cash' | 'transfer'; // ช่องทางการจ่าย: 'cash' = จ่ายเงินสด, 'transfer' = จ่ายเงินโอน (ค่าเริ่มต้นเป็น 'cash')
 }
 
 export interface OutLabItem {
@@ -56,6 +57,7 @@ export interface FixCostItem {
   name: string; // ชื่อรายการ เช่น ค่าเช่าคลินิก, ค่าไฟฟ้า, ค่าอินเทอร์เน็ต, เงินเดือนพนักงาน
   amount?: number; // จำนวนเงิน หากไม่ระบุ หรือ 0 หมายถึงยอดผันแปร เช่น ค่าไฟ ให้ผู้ใช้ไปกรอกทีหลัง
   note?: string; // หมายเหตุเพิ่มเติม
+  type?: 'cash' | 'transfer'; // ช่องทางการจ่าย: 'cash' = เงินสด, 'transfer' = เงินโอน (ค่าเริ่มต้นเป็น 'cash')
 }
 
 export interface Business {
