@@ -15,6 +15,7 @@ interface DailyReportModuleProps {
   record: DailyRecord;
   businessName?: string;
   businessCode?: string;
+  businessLogoUrl?: string;
 }
 
 export default function DailyReportModule({
@@ -23,6 +24,7 @@ export default function DailyReportModule({
   record,
   businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
   businessCode = 'CLN',
+  businessLogoUrl,
 }: DailyReportModuleProps) {
   const [customDailyTitle, setCustomDailyTitle] = React.useState<string>(() => {
     return localStorage.getItem('bklabplus_daily_custom_title') || '';
@@ -212,7 +214,13 @@ export default function DailyReportModule({
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-100">
           <div className="space-y-2 flex-1 min-w-0">
             <div className="flex items-center gap-2.5">
-              <span className="w-4 h-8 bg-blue-600 rounded-md shrink-0"></span>
+              {businessLogoUrl ? (
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                  <img src={businessLogoUrl} alt={businessName} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <span className="w-4 h-8 bg-blue-600 rounded-md shrink-0"></span>
+              )}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xl md:text-2xl font-black tracking-tight text-slate-900 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">

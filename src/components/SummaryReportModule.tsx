@@ -936,13 +936,23 @@ export default function SummaryReportModule({
           
           {/* ซีกซ้าย: โลโก้ + ชื่อบริษัท/ธุรกิจ + หัวข้อเอกสารใต้ชื่อบริษัท */}
           <div className="flex items-start gap-3.5 flex-1 min-w-0">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 mt-0.5 ${
-              selectedBiz === 'all'
-                ? 'bg-gradient-to-br from-indigo-600 to-purple-700'
-                : 'bg-gradient-to-br from-blue-600 to-indigo-700'
-            }`}>
-              {selectedBiz === 'all' ? <Building2 size={24} /> : <HeartPulse size={24} />}
-            </div>
+            {activeBizObj?.logoUrl ? (
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-white border border-slate-200 shadow-xs shrink-0 mt-0.5 overflow-hidden p-1">
+                <img
+                  src={activeBizObj.logoUrl}
+                  alt={activeBizTitle}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 mt-0.5 ${
+                selectedBiz === 'all'
+                  ? 'bg-gradient-to-br from-indigo-600 to-purple-700'
+                  : 'bg-gradient-to-br from-blue-600 to-indigo-700'
+              }`}>
+                {selectedBiz === 'all' ? <Building2 size={24} /> : <HeartPulse size={24} />}
+              </div>
+            )}
 
             <div className="space-y-2 flex-1 min-w-0">
               {/* แถวชื่อบริษัท + รหัส */}

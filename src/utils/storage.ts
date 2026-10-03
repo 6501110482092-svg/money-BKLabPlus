@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DailyRecord, LabTestTemplate, Business } from '../types';
+import { DailyRecord, LabTestTemplate, Business, PeriodCashCheckRecord } from '../types';
 import { DEFAULT_LAB_TESTS, DEFAULT_BUSINESSES, isLastDayOfMonth } from '../constants';
 import { saveRecordToFirebase, saveLabTestsToFirebase, saveBusinessesToFirebase } from './firebase';
 
@@ -296,3 +296,34 @@ export async function uploadLabTestsToServer(tests: LabTestTemplate[]) {
 export async function syncLabTestsWithServer(): Promise<LabTestTemplate[] | null> {
   return null;
 }
+
+// ตรวจสอบและบันทึกการนับเงินสดประจำช่วงเวลา / ประจำเดือน
+export function loadPeriodCashCheck(startDate: string, endDate: string, businessId?: string): PeriodCashCheckRecord | null {
+  try {
+    const bId = businessId || 'clinic-main';
+    const key = `bklabplus_period_cash_${bId}_${startDate}_${endDate}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function savePeriodCashCheck(record: PeriodCashCheckRecord) {
+  try {
+    const key = `bklabplus_period_cash_${record.businessId}_${record.startDate}_${record.endDate}`;
+    localStorage.setItem(key, JSON.stringify(record));
+
+    // บันทึกเข้าประวัติการตรวจนับช่วงเวลา
+    const historyKey = `bklabplus_period_cash_history_${record.businessId}`;
+    const existingHistoryStr = localStorage.getItem(historyKey);
+    let history: PeriodCashCheckRecord[] = existingHistoryStr ? JSON.parse(existingHistoryStr) : [];
+    history = history.filter((h) => !(h.startDate === record.startDate && h.endDate === record.endDate));
+    history.unshift(record);
+    if (history.length > 50) history = history.slice(0, 50);
+    localStorage.setItem(historyKey, JSON.stringify(history));
+  } catch (e) {
+    console.error('Error saving period cash check', e);
+  }
+}
+

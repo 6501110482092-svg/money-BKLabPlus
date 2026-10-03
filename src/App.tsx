@@ -456,7 +456,11 @@ export default function App() {
                 title="คลิกเพื่อสลับบริษัท/ธุรกิจ"
               >
                 <div className="flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-full ${getBusinessColorClasses(activeBusiness.color).dot}`} />
+                  {activeBusiness.logoUrl ? (
+                    <img src={activeBusiness.logoUrl} alt={activeBusiness.name} className="w-5 h-5 rounded-md object-contain bg-white shrink-0 p-0.5 border border-slate-600" />
+                  ) : (
+                    <span className={`w-2.5 h-2.5 rounded-full ${getBusinessColorClasses(activeBusiness.color).dot}`} />
+                  )}
                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-700/90 text-blue-300 uppercase tracking-wider font-mono border border-slate-600">
                     {activeBusiness.code || 'BIZ'}
                   </span>
@@ -509,7 +513,11 @@ export default function App() {
                             }`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${colorCls.dot}`} />
+                              {biz.logoUrl ? (
+                                <img src={biz.logoUrl} alt={biz.name} className="w-5 h-5 rounded-md object-contain bg-white shrink-0 p-0.5 border border-slate-700" />
+                              ) : (
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${colorCls.dot}`} />
+                              )}
                               <div className="truncate">
                                 <div className="flex items-center gap-1.5">
                                   <span className={`text-[9px] font-black px-1.5 py-0.5 rounded font-mono uppercase ${isSelected ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300'}`}>
@@ -592,7 +600,7 @@ export default function App() {
               ) : (
                 <>
                   <span className="text-xs text-slate-400 font-bold hidden sm:inline">
-                    วันที่ {activeTab === 'income' ? '(รายรับ)' : activeTab === 'expense' ? '(รายจ่าย)' : activeTab === 'daily' ? '(รายงานประจำวัน)' : '(ข้อมูล)'}:
+                    วันที่ {activeTab === 'income' ? '(รายรับ)' : activeTab === 'expense' ? '(รายจ่าย)' : activeTab === 'profit' ? '(ประมวลผลกำไร/นับเงินสด)' : activeTab === 'daily' ? '(รายงานประจำวัน)' : '(ข้อมูล)'}:
                   </span>
                   <input
                     type="date"
@@ -613,9 +621,15 @@ export default function App() {
         {/* แถบแจ้งเตือนบริษัทที่กำลังบันทึกข้อมูล พร้อมปุ่มสลับบริษัทด่วน */}
         <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${getBusinessColorClasses(activeBusiness.color).bg} ${getBusinessColorClasses(activeBusiness.color).text}`}>
-              <Building2 size={18} />
-            </div>
+            {activeBusiness.logoUrl ? (
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                <img src={activeBusiness.logoUrl} alt={activeBusiness.name} className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className={`p-2 rounded-xl ${getBusinessColorClasses(activeBusiness.color).bg} ${getBusinessColorClasses(activeBusiness.color).text}`}>
+                <Building2 size={18} />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-semibold text-slate-500">สมุดบัญชีที่กำลังใช้งาน:</span>
@@ -705,6 +719,11 @@ export default function App() {
               onDateChange={handleDateChange}
               record={currentRecord}
               onSaveRecord={handleSaveRecord}
+              activeBusinessId={activeBusinessId}
+              businessName={activeBusiness.name}
+              businessCode={activeBusiness.code}
+              businessLogoUrl={activeBusiness.logoUrl}
+              allBusinessRecords={currentBizRecords}
             />
           )}
 
@@ -715,6 +734,7 @@ export default function App() {
               record={currentRecord}
               businessName={activeBusiness.name}
               businessCode={activeBusiness.code}
+              businessLogoUrl={activeBusiness.logoUrl}
             />
           )}
 

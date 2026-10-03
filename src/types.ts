@@ -29,6 +29,17 @@ export interface CashCheckData {
   isSaved: boolean;    // สถานะการบันทึก
 }
 
+export interface PeriodCashCheckRecord {
+  startDate: string;
+  endDate: string;
+  businessId: string;
+  countedCash: number;
+  expectedCash: number;
+  diff: number;
+  note: string;
+  savedAt: string;
+}
+
 export interface DailyRecord {
   date: string; // รูปแบบ YYYY-MM-DD
   businessId?: string; // รหัสธุรกิจ/บริษัท เพื่อแยกบันทึกไม่ให้ปนกัน
@@ -53,6 +64,7 @@ export interface Business {
   code?: string;
   description?: string;
   color?: string; // 'emerald' | 'blue' | 'purple' | 'amber' | 'rose' | 'indigo' | 'cyan'
+  logoUrl?: string; // รูปภาพโลโก้ประจำธุรกิจ/คลินิก (Base64 Data URL หรือ Image URL)
   isDefault?: boolean;
   createdAt?: string;
   fixCosts?: FixCostItem[]; // รายการค่าใช้จ่ายประจำเดือน (Fix Costs)

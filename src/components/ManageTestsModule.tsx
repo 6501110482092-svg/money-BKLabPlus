@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { LabTestTemplate, Business, FixCostItem } from '../types';
 import { loadLabTests, saveLabTests, loadBusinesses, saveBusinesses, saveActiveBusinessId } from '../utils/storage';
 import { subscribeToLabTests, subscribeToBusinesses } from '../utils/firebase';
-import { getBusinessColorClasses, formatNumber } from '../constants';
+import { getBusinessColorClasses, formatNumber, compressImageFile } from '../constants';
 import {
   Plus,
   Trash2,
@@ -24,6 +24,8 @@ import {
   CalendarClock,
   Info,
   Coins,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -54,11 +56,13 @@ export default function ManageTestsModule({
   const [newBizCode, setNewBizCode] = useState('');
   const [newBizDesc, setNewBizDesc] = useState('');
   const [newBizColor, setNewBizColor] = useState<string>('emerald');
+  const [newBizLogo, setNewBizLogo] = useState<string>('');
   const [editingBizId, setEditingBizId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editCode, setEditCode] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editColor, setEditColor] = useState('emerald');
+  const [editLogo, setEditLogo] = useState<string>('');
 
   // รัฐจัดการ Fix Cost (รายจ่ายประจำเดือน)
   const [selectedFixCostBizId, setSelectedFixCostBizId] = useState<string>(() => propActiveBusinessId || businesses[0]?.id || 'clinic-main');
@@ -127,6 +131,7 @@ export default function ManageTestsModule({
       code,
       description: newBizDesc.trim() || 'บันทึกรายรับ-รายจ่ายแยกสมุด',
       color: newBizColor,
+      logoUrl: newBizLogo.trim() || undefined,
       createdAt: new Date().toISOString(),
       fixCosts: [],
     };
@@ -142,6 +147,7 @@ export default function ManageTestsModule({
     setNewBizCode('');
     setNewBizDesc('');
     setNewBizColor('emerald');
+    setNewBizLogo('');
   };
 
   const handleStartEdit = (biz: Business) => {
@@ -150,6 +156,7 @@ export default function ManageTestsModule({
     setEditCode(biz.code || '');
     setEditDesc(biz.description || '');
     setEditColor(biz.color || 'emerald');
+    setEditLogo(biz.logoUrl || '');
   };
 
   const handleSaveEdit = (id: string) => {
@@ -162,6 +169,7 @@ export default function ManageTestsModule({
           code: editCode.trim() || editName.trim().substring(0, 3).toUpperCase(),
           description: editDesc.trim(),
           color: editColor,
+          logoUrl: editLogo.trim() || undefined,
         };
       }
       return b;
@@ -418,11 +426,51 @@ export default function ManageTestsModule({
                       className="w-full text-xs font-semibold py-1.5 px-2.5 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white"
                     />
                   </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 block mb-1">
+                      รูปภาพโลโก้ประจำธุรกิจ (แสดงบนหัวกระดาษรายงาน)
+                    </label>
+                    <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-200">
+                      {editLogo ? (
+                        <div className="relative w-12 h-12 rounded-xl border border-slate-300 bg-white p-1 flex items-center justify-center shrink-0 shadow-2xs group">
+                          <img src={editLogo} alt="Logo preview" className="w-full h-full object-contain" />
+                          <button
+                            type="button"
+                            onClick={() => setEditLogo('')}
+                            className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white rounded-full p-0.5 shadow hover:bg-rose-600 cursor-pointer"
+                            title="ลบโลโก้"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400 shrink-0">
+                          <ImageIcon size={20} />
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-1">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs">
+                          <Upload size={13} className="text-blue-600" />
+                          <span>{editLogo ? 'เปลี่ยนรูปโลโก้' : 'อัปโหลดรูปภาพโลโก้'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) compressImageFile(file, setEditLogo);
+                            }}
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400">รูปภาพจะถูกนำไปแสดงเป็นโลโก้หัวกระดาษรายงาน</p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => handleSaveEdit(biz.id)}
-                      className="flex-1 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1"
+                      className="flex-1 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Check size={13} />
                       <span>บันทึก</span>
@@ -430,7 +478,7 @@ export default function ManageTestsModule({
                     <button
                       type="button"
                       onClick={() => setEditingBizId(null)}
-                      className="text-xs text-gray-500 py-1.5 px-2.5 rounded-lg border border-gray-200 hover:bg-gray-100"
+                      className="text-xs text-gray-500 py-1.5 px-2.5 rounded-lg border border-gray-200 hover:bg-gray-100 cursor-pointer"
                     >
                       ยกเลิก
                     </button>
@@ -450,7 +498,13 @@ export default function ManageTestsModule({
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorCls.dot}`} />
+                    {biz.logoUrl ? (
+                      <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                        <img src={biz.logoUrl} alt={biz.name} className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorCls.dot}`} />
+                    )}
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase tracking-wider font-mono border border-slate-200">
                       {biz.code || 'BIZ'}
                     </span>
@@ -462,8 +516,8 @@ export default function ManageTestsModule({
                     <button
                       type="button"
                       onClick={() => handleStartEdit(biz)}
-                      className="p-1 text-gray-400 hover:text-blue-600 rounded-md hover:bg-gray-100 transition-colors"
-                      title="แก้ไขข้อมูล"
+                      className="p-1 text-gray-400 hover:text-blue-600 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+                      title="แก้ไขข้อมูลและโลโก้"
                     >
                       <Edit2 size={13} />
                     </button>
@@ -471,7 +525,7 @@ export default function ManageTestsModule({
                       <button
                         type="button"
                         onClick={() => handleDeleteBusiness(biz.id)}
-                        className="p-1 text-gray-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors"
+                        className="p-1 text-gray-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                         title="ลบธุรกิจ"
                       >
                         <Trash2 size={13} />
@@ -480,9 +534,11 @@ export default function ManageTestsModule({
                   </div>
                 </div>
 
-                <h4 className="font-extrabold text-slate-900 text-sm leading-snug mb-1 truncate" title={biz.name}>
-                  {biz.name}
-                </h4>
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-extrabold text-slate-900 text-sm leading-snug truncate" title={biz.name}>
+                    {biz.name}
+                  </h4>
+                </div>
                 <p className="text-[11px] text-gray-500 line-clamp-2 min-h-[32px]">
                   {biz.description || 'บันทึกแยกสมุดบัญชีรายรับ-รายจ่าย'}
                 </p>
@@ -529,48 +585,87 @@ export default function ManageTestsModule({
               เพิ่มบริษัท / ธุรกิจใหม่ในระบบ
             </span>
           </div>
-          <form onSubmit={handleAddBusiness} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="text-[10px] font-bold text-gray-600 block mb-1">ชื่อบริษัท / คลินิก / ธุรกิจ *</label>
-              <input
-                type="text"
-                placeholder="เช่น คลินิกเวชกรรม สาขา 2"
-                value={newBizName}
-                onChange={(e) => setNewBizName(e.target.value)}
-                required
-                className="w-full text-xs font-semibold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white"
-              />
+          <form onSubmit={handleAddBusiness} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-600 block mb-1">ชื่อบริษัท / คลินิก / ธุรกิจ *</label>
+                <input
+                  type="text"
+                  placeholder="เช่น คลินิกเวชกรรม สาขา 2"
+                  value={newBizName}
+                  onChange={(e) => setNewBizName(e.target.value)}
+                  required
+                  className="w-full text-xs font-semibold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-600 block mb-1">รหัสย่อ (Code)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น BR2, LAB, DEN"
+                  value={newBizCode}
+                  onChange={(e) => setNewBizCode(e.target.value)}
+                  maxLength={6}
+                  className="w-full text-xs font-bold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white uppercase font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-600 block mb-1">สีประจำธุรกิจ</label>
+                <select
+                  value={newBizColor}
+                  onChange={(e) => setNewBizColor(e.target.value)}
+                  className="w-full text-xs font-semibold py-2 px-2.5 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white cursor-pointer"
+                >
+                  <option value="emerald">เขียว (Emerald) - คลินิกหลัก</option>
+                  <option value="blue">ฟ้า (Blue) - แผนกแล็บวิเคราะห์</option>
+                  <option value="purple">ม่วง (Purple) - สาขาย่อย/บริษัท 2</option>
+                  <option value="amber">ส้มทอง (Amber) - แผนกการค้า/หน้าร้าน</option>
+                  <option value="rose">กุหลาบ (Rose) - แผนกเฉพาะทาง</option>
+                  <option value="cyan">ไซแอน (Cyan) - แผนกทันตกรรม</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-bold text-gray-600 block mb-1">รหัสย่อ (Code)</label>
-              <input
-                type="text"
-                placeholder="เช่น BR2, LAB, DEN"
-                value={newBizCode}
-                onChange={(e) => setNewBizCode(e.target.value)}
-                maxLength={6}
-                className="w-full text-xs font-bold py-2 px-3 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white uppercase font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-gray-600 block mb-1">สีประจำธุรกิจ</label>
-              <select
-                value={newBizColor}
-                onChange={(e) => setNewBizColor(e.target.value)}
-                className="w-full text-xs font-semibold py-2 px-2.5 border border-gray-200 rounded-lg outline-none focus:border-blue-500 bg-white cursor-pointer"
-              >
-                <option value="emerald">เขียว (Emerald) - คลินิกหลัก</option>
-                <option value="blue">ฟ้า (Blue) - แผนกแล็บวิเคราะห์</option>
-                <option value="purple">ม่วง (Purple) - สาขาย่อย/บริษัท 2</option>
-                <option value="amber">ส้มทอง (Amber) - แผนกการค้า/หน้าร้าน</option>
-                <option value="rose">กุหลาบ (Rose) - แผนกเฉพาะทาง</option>
-                <option value="cyan">ไซแอน (Cyan) - แผนกทันตกรรม</option>
-              </select>
-            </div>
-            <div className="flex items-end">
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1 border-t border-slate-200/60">
+              {/* อัปโหลดรูปโลโก้สำหรับบริษัทใหม่ */}
+              <div className="flex items-center gap-2.5">
+                {newBizLogo ? (
+                  <div className="relative w-10 h-10 rounded-xl border border-slate-300 bg-white p-0.5 flex items-center justify-center shrink-0 shadow-2xs">
+                    <img src={newBizLogo} alt="New logo preview" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setNewBizLogo('')}
+                      className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white rounded-full p-0.5 shadow hover:bg-rose-600 cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 shrink-0">
+                    <ImageIcon size={16} />
+                  </div>
+                )}
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs">
+                  <Upload size={12} className="text-blue-600" />
+                  <span>{newBizLogo ? 'เปลี่ยนรูปโลโก้' : 'เพิ่มรูปภาพโลโก้'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) compressImageFile(file, setNewBizLogo);
+                    }}
+                  />
+                </label>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  (แสดงแทนรูปไอคอนบนหัวกระดาษรายงาน)
+                </span>
+              </div>
+
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs py-2 px-4 rounded-lg transition-all h-[38px] flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs py-2 px-5 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
               >
                 <Plus size={15} />
                 <span>+ เพิ่มบริษัทใหม่</span>

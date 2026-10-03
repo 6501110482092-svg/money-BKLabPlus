@@ -3,10 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { DailyRecord } from '../types';
-import { formatNumber } from '../constants';
-import { Save, Calendar, CheckCircle, AlertTriangle, Coins, TrendingUp, ShieldAlert, ArrowRightLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { DailyRecord, PeriodCashCheckRecord } from '../types';
+import { formatNumber, getTodayDateString, getLastDayOfMonth, getBusinessColorClasses } from '../constants';
+import { loadPeriodCashCheck, savePeriodCashCheck, loadAllRecords } from '../utils/storage';
+import {
+  Save,
+  Calendar,
+  CalendarDays,
+  CalendarRange,
+  CheckCircle,
+  AlertTriangle,
+  Coins,
+  TrendingUp,
+  ShieldAlert,
+  Printer,
+  FileText,
+  Clock,
+  ArrowRight,
+  Sparkles,
+  ChevronRight,
+  Building2,
+  DollarSign
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProfitModuleProps {
@@ -14,6 +33,49 @@ interface ProfitModuleProps {
   onDateChange: (date: string) => void;
   record: DailyRecord;
   onSaveRecord: (record: DailyRecord) => void;
+  activeBusinessId?: string;
+  businessName?: string;
+  businessCode?: string;
+  businessLogoUrl?: string;
+  allBusinessRecords?: Record<string, DailyRecord>;
+}
+
+// ฟังก์ชันคำนวณวันเริ่มต้นของเดือน YYYY-MM-01
+function getFirstDayOfMonth(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  return `${parts[0]}-${parts[1]}-01`;
+}
+
+// ฟังก์ชันคำนวณช่วงเดือนก่อนหน้า
+function getPreviousMonthRange(dateStr: string): { start: string; end: string } {
+  const parts = (dateStr || getTodayDateString()).split('-');
+  let year = parseInt(parts[0], 10);
+  let month = parseInt(parts[1], 10) - 1;
+  if (month < 1) {
+    month = 12;
+    year -= 1;
+  }
+  const monthStr = String(month).padStart(2, '0');
+  const start = `${year}-${monthStr}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  return { start, end };
+}
+
+// ฟังก์ชันคำนวณช่วง N วันล่าสุด
+function getLastNDaysRange(days: number): { start: string; end: string } {
+  const endObj = new Date();
+  const startObj = new Date();
+  startObj.setDate(endObj.getDate() - (days - 1));
+
+  const formatD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  return { start: formatD(startObj), end: formatD(endObj) };
 }
 
 export default function ProfitModule({
@@ -21,135 +83,390 @@ export default function ProfitModule({
   onDateChange,
   record,
   onSaveRecord,
+  activeBusinessId = 'clinic-main',
+  businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
+  businessCode = 'CLN',
+  businessLogoUrl,
+  allBusinessRecords,
 }: ProfitModuleProps) {
+  // โหมดการดู: 'day' = รายวัน (1 วัน), 'range' = เป็นช่วงวันที่ / รายเดือน
+  const [viewMode, setViewMode] = useState<'day' | 'range'>(() => {
+    return (localStorage.getItem('bklabplus_profit_view_mode') as 'day' | 'range') || 'day';
+  });
+
+  // ตัวเลือกพรีเซ็ตช่วงวันที่: 'this_month' | 'last_month' | '7days' | '30days' | 'custom'
+  const [rangePreset, setRangePreset] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_profit_range_preset') || 'this_month';
+  });
+
+  const [startDate, setStartDate] = useState<string>(() => {
+    const saved = localStorage.getItem('bklabplus_profit_start_date');
+    if (saved) return saved;
+    return getFirstDayOfMonth(currentDate || getTodayDateString());
+  });
+
+  const [endDate, setEndDate] = useState<string>(() => {
+    const saved = localStorage.getItem('bklabplus_profit_end_date');
+    if (saved) return saved;
+    return getLastDayOfMonth(currentDate || getTodayDateString());
+  });
+
+  // สถานะการนับเงินสด
   const [countedCash, setCountedCash] = useState<number>(0);
   const [note, setNote] = useState<string>('');
+  const [lastSavedPeriodInfo, setLastSavedPeriodInfo] = useState<PeriodCashCheckRecord | null>(null);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // คำนวณยอดเงินเบื้องต้นอย่างปลอดภัย
-  const incomeItems = record?.incomeItems || [];
-  const expenseItems = record?.expenseItems || [];
-  const outLabItems = record?.outLabItems || [];
-  const hasOutLab = record?.hasOutLab !== false;
+  // ดึงฐานข้อมูลเรคคอร์ดทั้งหมดของธุรกิจปัจจุบัน
+  const records = useMemo(() => {
+    if (allBusinessRecords && Object.keys(allBusinessRecords).length > 0) {
+      return allBusinessRecords;
+    }
+    return loadAllRecords(activeBusinessId);
+  }, [allBusinessRecords, activeBusinessId]);
 
-  const cashIncome = incomeItems
-    .filter((item) => item.type === 'cash')
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  // ซิงค์โหมดและวันที่ลง LocalStorage
+  const handleViewModeChange = (mode: 'day' | 'range') => {
+    setViewMode(mode);
+    localStorage.setItem('bklabplus_profit_view_mode', mode);
+  };
 
-  const transferIncome = incomeItems
-    .filter((item) => item.type === 'transfer')
-    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    setRangePreset('custom');
+    localStorage.setItem('bklabplus_profit_start_date', val);
+    localStorage.setItem('bklabplus_profit_range_preset', 'custom');
+  };
 
-  const totalIncome = cashIncome + transferIncome;
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    setRangePreset('custom');
+    localStorage.setItem('bklabplus_profit_end_date', val);
+    localStorage.setItem('bklabplus_profit_range_preset', 'custom');
+  };
 
-  const generalExpense = expenseItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const outLabExpense = hasOutLab
-    ? outLabItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-    : 0;
+  // ทางลัดเลือกช่วงวันที่ (Quick Presets)
+  const applyPreset = (preset: 'today' | 'this_month' | 'last_month' | '7days' | '30days') => {
+    setRangePreset(preset);
+    localStorage.setItem('bklabplus_profit_range_preset', preset);
 
-  const totalExpense = generalExpense + outLabExpense;
+    if (preset === 'today') {
+      const today = getTodayDateString();
+      setStartDate(today);
+      setEndDate(today);
+      localStorage.setItem('bklabplus_profit_start_date', today);
+      localStorage.setItem('bklabplus_profit_end_date', today);
+    } else if (preset === 'this_month') {
+      const refDate = currentDate || getTodayDateString();
+      const start = getFirstDayOfMonth(refDate);
+      const end = getLastDayOfMonth(refDate);
+      setStartDate(start);
+      setEndDate(end);
+      localStorage.setItem('bklabplus_profit_start_date', start);
+      localStorage.setItem('bklabplus_profit_end_date', end);
+    } else if (preset === 'last_month') {
+      const refDate = currentDate || getTodayDateString();
+      const { start, end } = getPreviousMonthRange(refDate);
+      setStartDate(start);
+      setEndDate(end);
+      localStorage.setItem('bklabplus_profit_start_date', start);
+      localStorage.setItem('bklabplus_profit_end_date', end);
+    } else if (preset === '7days') {
+      const { start, end } = getLastNDaysRange(7);
+      setStartDate(start);
+      setEndDate(end);
+      localStorage.setItem('bklabplus_profit_start_date', start);
+      localStorage.setItem('bklabplus_profit_end_date', end);
+    } else if (preset === '30days') {
+      const { start, end } = getLastNDaysRange(30);
+      setStartDate(start);
+      setEndDate(end);
+      localStorage.setItem('bklabplus_profit_start_date', start);
+      localStorage.setItem('bklabplus_profit_end_date', end);
+    }
+  };
 
-  // 1) รายได้สุทธิ = (เงินสด + เงินโอน) - รายจ่าย - Out-Lab
-  const netProfit = totalIncome - totalExpense;
+  // --- คำนวณยอดเงินของโหมดรายวัน (Single Day) ---
+  const dailyRecord = useMemo(() => {
+    return record || records[currentDate] || {
+      date: currentDate,
+      incomeItems: [],
+      expenseItems: [],
+      outLabItems: [],
+      hasOutLab: true,
+      cashCheck: { countedCash: 0, note: '', isSaved: false },
+    };
+  }, [record, records, currentDate]);
 
-  // 2) ยอดเงินสดที่ควรจะมี = เงินสด - รายจ่าย - Out-Lab
-  const expectedCash = cashIncome - generalExpense - outLabExpense;
+  const dailyCashIncome = useMemo(() => {
+    return (dailyRecord.incomeItems || [])
+      .filter((item) => item.type === 'cash')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [dailyRecord]);
 
-  const prevRecordRef = useRef<string>('');
+  const dailyTransferIncome = useMemo(() => {
+    return (dailyRecord.incomeItems || [])
+      .filter((item) => item.type === 'transfer')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [dailyRecord]);
 
-  // ซิงค์ยอดเงินที่บันทึกไว้ใน record
-  useEffect(() => {
-    const serializedRecord = JSON.stringify({
-      countedCash: record?.cashCheck?.countedCash || 0,
-      note: record?.cashCheck?.note || ''
+  const dailyTotalIncome = dailyCashIncome + dailyTransferIncome;
+
+  const dailyGeneralExpense = useMemo(() => {
+    return (dailyRecord.expenseItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [dailyRecord]);
+
+  const dailyOutLabExpense = useMemo(() => {
+    if (dailyRecord.hasOutLab === false) return 0;
+    return (dailyRecord.outLabItems || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [dailyRecord]);
+
+  const dailyTotalExpense = dailyGeneralExpense + dailyOutLabExpense;
+  const dailyNetProfit = dailyTotalIncome - dailyTotalExpense;
+  const dailyExpectedCash = dailyCashIncome - dailyTotalExpense;
+
+  // --- คำนวณยอดเงินของโหมดช่วงวันที่ (Date Range / Month) ---
+  const rangeData = useMemo(() => {
+    const s = startDate <= endDate ? startDate : endDate;
+    const e = startDate <= endDate ? endDate : startDate;
+
+    const matchedDates = Object.keys(records)
+      .filter((d) => d >= s && d <= e)
+      .sort();
+
+    let totalCashInc = 0;
+    let totalTransferInc = 0;
+    let totalGenExp = 0;
+    let totalOutLabExp = 0;
+    let daysWithRecords = 0;
+
+    const dailyBreakdown = matchedDates.map((dateStr) => {
+      const rec = records[dateStr];
+      if (!rec) {
+        return {
+          date: dateStr,
+          cashIncome: 0,
+          transferIncome: 0,
+          totalIncome: 0,
+          generalExpense: 0,
+          outLabExpense: 0,
+          totalExpense: 0,
+          netProfit: 0,
+          expectedCash: 0,
+          countedCash: 0,
+          isCounted: false,
+          note: '',
+        };
+      }
+
+      daysWithRecords += 1;
+      const cInc = (rec.incomeItems || [])
+        .filter((i) => i.type === 'cash')
+        .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      const tInc = (rec.incomeItems || [])
+        .filter((i) => i.type === 'transfer')
+        .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      const gExp = (rec.expenseItems || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+      const oExp = rec.hasOutLab !== false
+        ? (rec.outLabItems || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+        : 0;
+
+      const totInc = cInc + tInc;
+      const totExp = gExp + oExp;
+      const profit = totInc - totExp;
+      const expCash = cInc - totExp;
+
+      totalCashInc += cInc;
+      totalTransferInc += tInc;
+      totalGenExp += gExp;
+      totalOutLabExp += oExp;
+
+      return {
+        date: dateStr,
+        cashIncome: cInc,
+        transferIncome: tInc,
+        totalIncome: totInc,
+        generalExpense: gExp,
+        outLabExpense: oExp,
+        totalExpense: totExp,
+        netProfit: profit,
+        expectedCash: expCash,
+        countedCash: rec.cashCheck?.countedCash || 0,
+        isCounted: !!rec.cashCheck?.isSaved,
+        note: rec.cashCheck?.note || '',
+      };
     });
 
-    if (serializedRecord !== prevRecordRef.current) {
-      setCountedCash(record?.cashCheck?.countedCash || 0);
-      setNote(record?.cashCheck?.note || '');
-      setValidationError(null);
-      prevRecordRef.current = serializedRecord;
+    const totalInc = totalCashInc + totalTransferInc;
+    const totalExp = totalGenExp + totalOutLabExp;
+    const netProf = totalInc - totalExp;
+    const expCash = totalCashInc - totalExp;
+
+    return {
+      startDate: s,
+      endDate: e,
+      matchedDates,
+      daysWithRecords,
+      totalCashIncome: totalCashInc,
+      totalTransferIncome: totalTransferInc,
+      totalIncome: totalInc,
+      totalGeneralExpense: totalGenExp,
+      totalOutLabExpense: totalOutLabExp,
+      totalExpense: totalExp,
+      netProfit: netProf,
+      expectedCash: expCash,
+      dailyBreakdown,
+    };
+  }, [records, startDate, endDate]);
+
+  // ตัวเลขหลักที่จะนำมาแสดงผลขึ้นกับ viewMode
+  const activeFinancials = useMemo(() => {
+    if (viewMode === 'day') {
+      return {
+        title: `ประจำวัน (${currentDate})`,
+        isRange: false,
+        cashIncome: dailyCashIncome,
+        transferIncome: dailyTransferIncome,
+        totalIncome: dailyTotalIncome,
+        generalExpense: dailyGeneralExpense,
+        outLabExpense: dailyOutLabExpense,
+        totalExpense: dailyTotalExpense,
+        netProfit: dailyNetProfit,
+        expectedCash: dailyExpectedCash,
+        daysCount: 1,
+        activeDays: dailyRecord.incomeItems?.length || dailyRecord.expenseItems?.length ? 1 : 0,
+      };
     }
-  }, [record, currentDate]);
 
-  // ระบบ Auto-Save บันทึกส่วนกำไรและยอดตรวจนับเงินสด เรียลไทม์เบื้องหลังเมื่อหยุดปรับปรุง 1.2 วินาที
-  const recordRef = useRef(record);
+    return {
+      title: `ช่วงวันที่ ${rangeData.startDate} ถึง ${rangeData.endDate}`,
+      isRange: true,
+      cashIncome: rangeData.totalCashIncome,
+      transferIncome: rangeData.totalTransferIncome,
+      totalIncome: rangeData.totalIncome,
+      generalExpense: rangeData.totalGeneralExpense,
+      outLabExpense: rangeData.totalOutLabExpense,
+      totalExpense: rangeData.totalExpense,
+      netProfit: rangeData.netProfit,
+      expectedCash: rangeData.expectedCash,
+      daysCount: rangeData.matchedDates.length,
+      activeDays: rangeData.daysWithRecords,
+    };
+  }, [
+    viewMode,
+    currentDate,
+    dailyCashIncome,
+    dailyTransferIncome,
+    dailyTotalIncome,
+    dailyGeneralExpense,
+    dailyOutLabExpense,
+    dailyTotalExpense,
+    dailyNetProfit,
+    dailyExpectedCash,
+    dailyRecord,
+    rangeData,
+  ]);
+
+  // โหลดและซิงค์ยอดเงินสดที่ตรวจนับตาม viewMode
+  const prevRecordRef = useRef<string>('');
+
   useEffect(() => {
-    recordRef.current = record;
-  }, [record]);
-
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      const serializedLocal = JSON.stringify({
-        countedCash,
-        note
+    if (viewMode === 'day') {
+      const serialized = JSON.stringify({
+        c: record?.cashCheck?.countedCash || 0,
+        n: record?.cashCheck?.note || '',
+        d: currentDate,
       });
-      const currentRecordLatest = recordRef.current;
-      const serializedProp = JSON.stringify({
-        countedCash: currentRecordLatest?.cashCheck?.countedCash || 0,
-        note: currentRecordLatest?.cashCheck?.note || ''
-      });
-
-      if (serializedLocal !== serializedProp) {
-        const updatedRecord: DailyRecord = {
-          ...currentRecordLatest,
-          cashCheck: {
-            countedCash,
-            note,
-            isSaved: currentRecordLatest?.cashCheck?.isSaved || false,
-          },
-        };
-        prevRecordRef.current = serializedLocal;
-        onSaveRecord(updatedRecord);
+      if (serialized !== prevRecordRef.current) {
+        setCountedCash(record?.cashCheck?.countedCash || 0);
+        setNote(record?.cashCheck?.note || '');
+        setValidationError(null);
+        prevRecordRef.current = serialized;
       }
-    }, 1200);
+    } else {
+      // โหมดช่วงวันที่ / รายเดือน: ดึงประวัติการนับเงินสดประจำช่วง
+      const savedPeriod = loadPeriodCashCheck(rangeData.startDate, rangeData.endDate, activeBusinessId);
+      if (savedPeriod) {
+        setCountedCash(savedPeriod.countedCash || 0);
+        setNote(savedPeriod.note || '');
+        setLastSavedPeriodInfo(savedPeriod);
+      } else {
+        // หากยังไม่เคยบันทึกช่วงนี้ ให้เตรียมค่าเริ่มต้น
+        setCountedCash(0);
+        setNote('');
+        setLastSavedPeriodInfo(null);
+      }
+      setValidationError(null);
+    }
+  }, [viewMode, currentDate, record, rangeData.startDate, rangeData.endDate, activeBusinessId]);
 
-    return () => clearTimeout(timer);
-  }, [countedCash, note]);
-
-  // ตรวจสอบ ลอจิก
-  const diff = countedCash - expectedCash;
+  // คำนวณผลต่างการตรวจนับเงินสด
+  const diff = countedCash - activeFinancials.expectedCash;
   const isCorrect = Math.abs(diff) < 0.01;
 
-  // ตรวจสอบเงื่อนไขว่า ถ้าไม่ตรง -> ต้องกรอก "หมายเหตุ" ก่อนบันทึก
+  // ตรวจสอบและบันทึกผลการตรวจสอบเงินสด
   const handleSave = () => {
     if (!isCorrect && note.trim() === '') {
-      setValidationError('ยอดเงินจริงที่นับได้ไม่ตรงกับยอดทางบัญชี กรุณากรอก "หมายเหตุ" ก่อนบันทึกข้อมูล');
+      setValidationError('ยอดเงินจริงที่นับได้ไม่ตรงกับยอดทางบัญชี กรุณากรอก "หมายเหตุ" ชี้แจงก่อนบันทึกข้อมูล');
       return;
     }
 
     setValidationError(null);
 
-    const updatedRecord: DailyRecord = {
-      ...record,
-      cashCheck: {
+    if (viewMode === 'day') {
+      // บันทึกระดับรายวัน
+      const updatedRecord: DailyRecord = {
+        ...dailyRecord,
+        cashCheck: {
+          countedCash,
+          note,
+          isSaved: true,
+        },
+      };
+
+      prevRecordRef.current = JSON.stringify({
+        c: countedCash,
+        n: note,
+        d: currentDate,
+      });
+
+      onSaveRecord(updatedRecord);
+    } else {
+      // บันทึกระดับช่วงวันที่ / รายเดือน
+      const periodRecord: PeriodCashCheckRecord = {
+        startDate: rangeData.startDate,
+        endDate: rangeData.endDate,
+        businessId: activeBusinessId,
         countedCash,
+        expectedCash: activeFinancials.expectedCash,
+        diff,
         note,
-        isSaved: true,
-      },
-    };
+        savedAt: new Date().toISOString(),
+      };
 
-    // อัปเดต ref ตัวอ้างอิงข้อมูลล่าสุดที่บันทึก เพื่อไม่ให้โดนตีความว่าถูกแก้ไขหลังจากรับ prop ใหม่
-    prevRecordRef.current = JSON.stringify({
-      countedCash,
-      note
-    });
+      savePeriodCashCheck(periodRecord);
+      setLastSavedPeriodInfo(periodRecord);
 
-    onSaveRecord(updatedRecord);
+      // หากช่วงวันที่เป็นวันเดียวกัน (startDate === endDate) ซิงค์ไปยัง DailyRecord ด้วย
+      if (rangeData.startDate === rangeData.endDate && rangeData.startDate === currentDate) {
+        const updatedRecord: DailyRecord = {
+          ...dailyRecord,
+          cashCheck: {
+            countedCash,
+            note,
+            isSaved: true,
+          },
+        };
+        onSaveRecord(updatedRecord);
+      }
+    }
+
     setShowSavedToast(true);
-    setTimeout(() => setShowSavedToast(false), 2500);
+    setTimeout(() => setShowSavedToast(false), 2800);
   };
 
-
-
-  // บันทึกด้วยคีย์ลัด F8 (ใช้ capture ป้องกันเบราว์เซอร์ดึงไปใช้ก่อน)
+  // คีย์ลัด F8 เพื่อบันทึก
   const saveRef = useRef(handleSave);
   useEffect(() => {
     saveRef.current = handleSave;
@@ -157,235 +474,687 @@ export default function ProfitModule({
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      const isF8 = e.key === 'F8';
-
-      if (isF8) {
+      if (e.key === 'F8') {
         e.preventDefault();
         e.stopPropagation();
         saveRef.current();
       }
     };
-    // ใช้ capture = true เพื่อดักจับ Event ก่อนที่จะถูก Browser หรือ Element อื่นขักขวาง
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, []);
 
+  // สลับไปดูรายวันของวันที่ต้องการในตารางแจกแจง
+  const handleJumpToDay = (targetDate: string) => {
+    onDateChange(targetDate);
+    setViewMode('day');
+    localStorage.setItem('bklabplus_profit_view_mode', 'day');
+  };
+
   return (
     <div className="space-y-6" id="profit-module-container">
-      {/* ส่วนควบคุม วันที่ */}
-      <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-150 flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
-            <Calendar size={20} />
+      {/* ส่วนควบคุม วันที่และโหมดการประมวลผล (Header Controls) */}
+      <div className="bg-white p-4 md:p-5 rounded-2xl shadow-xs border border-gray-150 space-y-4 print:hidden">
+        {/* แถบด้านบน: เลือกโหมด รายวัน vs ช่วงวันที่/รายเดือน */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3.5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">โหมดการตรวจประมวลผล:</span>
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                id="btn-profit-mode-day"
+                onClick={() => handleViewModeChange('day')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'day'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-black'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <Calendar size={14} />
+                <span>รายวัน (1 วัน)</span>
+              </button>
+              <button
+                type="button"
+                id="btn-profit-mode-range"
+                onClick={() => handleViewModeChange('range')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'range'
+                    ? 'bg-white text-emerald-700 shadow-2xs font-black'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <CalendarRange size={14} />
+                <span>ช่วงวันที่ / รายเดือน</span>
+              </button>
+            </div>
           </div>
-          <div>
-            <span className="text-xs text-gray-400 font-medium block">ตรวจสอบข้อมูลของวันที่</span>
-            <input
-              type="date"
-              id="profit-date-picker"
-              value={currentDate}
-              onChange={(e) => onDateChange(e.target.value)}
-              className="text-sm font-semibold text-gray-700 outline-none border border-gray-250 focus:border-emerald-500 rounded px-2.5 py-1 bg-gray-50/50"
-            />
+
+          {/* ปุ่มบันทึก & คีย์ลัด F8 & ปุ่มพิมพ์ */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-all cursor-pointer shadow-2xs"
+              title="พิมพ์ใบสรุปกำไรและนับเงินสด"
+            >
+              <Printer size={15} />
+              <span className="hidden sm:inline">พิมพ์รายงาน (PDF)</span>
+            </button>
+            <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-amber-50 px-2.5 py-1.5 rounded-xl border border-amber-100">
+              <span className="text-amber-800 font-bold">F8:</span>
+              <span className="text-amber-800">บันทึก</span>
+            </span>
+            <button
+              onClick={handleSave}
+              id="btn-save-profit"
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer"
+            >
+              <Save size={15} />
+              <span>บันทึกผลการตรวจสอบ</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-amber-50/50 px-3 py-1.5 rounded-xl border border-amber-100">
-            <span className="text-amber-800 font-bold">คีย์ลัด:</span>
-            <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-2xs font-bold text-slate-600">F8</kbd>
-            <span className="text-amber-800 font-bold">เพื่อบันทึก</span>
-          </span>
-          <button
-            onClick={handleSave}
-            id="btn-save-profit"
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm transition-all shadow-xs"
-          >
-            <Save size={16} />
-            <span>บันทึกผลการตรวจสอบ</span>
-          </button>
-        </div>
+        {/* แถบด้านล่าง: ตัวเลือกวันที่ตามโหมด */}
+        {viewMode === 'day' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <span className="text-[11px] text-gray-400 font-bold block">เลือกวันที่ตรวจสอบรายวัน</span>
+                <input
+                  type="date"
+                  id="profit-date-picker"
+                  value={currentDate}
+                  onChange={(e) => onDateChange(e.target.value)}
+                  className="text-sm font-black text-gray-800 outline-none border border-gray-250 focus:border-emerald-500 rounded-lg px-2.5 py-1 bg-gray-50/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-400 font-bold mr-1">ปุ่มด่วน:</span>
+              <button
+                type="button"
+                onClick={() => onDateChange(getTodayDateString())}
+                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200 transition-all cursor-pointer"
+              >
+                วันนี้
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 1);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, '0');
+                  onDateChange(`${y}-${m}-${day}`);
+                }}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all cursor-pointer"
+              >
+                เมื่อวาน
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* ปุ่มพรีเซ็ตช่วงยอดนิยม */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-gray-500 mr-1 flex items-center gap-1">
+                <Sparkles size={14} className="text-amber-500" />
+                <span>พรีเซ็ตด่วน:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => applyPreset('this_month')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  rangePreset === 'this_month'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                📅 เดือนนี้ (ทั้งเดือน)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('last_month')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  rangePreset === 'last_month'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                ⏪ เดือนที่แล้ว
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('7days')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  rangePreset === '7days'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                ⚡ 7 วันล่าสุด
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('30days')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  rangePreset === '30days'
+                    ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                📊 30 วันล่าสุด
+              </button>
+            </div>
+
+            {/* ช่องเลือกวันเริ่มต้น และ วันสิ้นสุด */}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500">ตั้งแต่วันที่:</span>
+                <input
+                  type="date"
+                  id="profit-start-date"
+                  value={startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  className="text-xs font-bold text-gray-800 outline-none border border-gray-250 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 bg-gray-50/50"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500">ถึงวันที่:</span>
+                <input
+                  type="date"
+                  id="profit-end-date"
+                  value={endDate}
+                  onChange={(e) => handleEndDateChange(e.target.value)}
+                  className="text-xs font-bold text-gray-800 outline-none border border-gray-250 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 bg-gray-50/50"
+                />
+              </div>
+
+              <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                <CalendarDays size={14} className="text-emerald-600" />
+                <span>
+                  ช่วงเวลา {rangeData.startDate} ถึง {rangeData.endDate} (มีบันทึกข้อมูล {rangeData.daysWithRecords} วัน)
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* บอร์ดคำนวณและสูตรหลัก */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-xs border border-gray-100 space-y-6">
-            <span className="text-base font-bold text-gray-800 border-b pb-2.5 block">การคำนวณรายได้สุทธิ และสถานะบัญชี</span>
-
-            {/* การวิเคราะห์แผ่นกระดาษ */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-gray-100 flex flex-col justify-between">
-                <div>
-                  <span className="text-xs text-gray-400 block mb-1">รายรับ (เงินสด + โอน)</span>
-                  <span className="text-xl font-bold text-slate-800">฿ {formatNumber(totalIncome)}</span>
-                </div>
-                <div className="text-[10px] text-gray-400 mt-2 flex flex-col">
-                  <span>เงินสด: ฿{formatNumber(cashIncome)}</span>
-                  <span>เงินโอน: ฿{formatNumber(transferIncome)}</span>
-                </div>
+      {/* ใบรายงานตัวจริง: ใช้ร่วมกันทั้งแสดงผลบนจอ และสั่ง Print / Export PDF */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-gray-150 shadow-xs space-y-6 print:border-0 print:shadow-none print:p-0 print:m-0" id="profit-print-area">
+        {/* หัวเอกสารรายงานแบรนด์ (พิมพ์ออกกระดาษ) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-100">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            {businessLogoUrl ? (
+              <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                <img src={businessLogoUrl} alt={businessName} className="w-full h-full object-contain" />
               </div>
-
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-gray-100 flex flex-col justify-between">
-                <div>
-                  <span className="text-xs text-gray-400 block mb-1">รายจ่ายรวมทั้งหมด</span>
-                  <span className="text-xl font-bold text-red-600">฿ {formatNumber(totalExpense)}</span>
-                </div>
-                <div className="text-[10px] text-gray-400 mt-2 flex flex-col">
-                  <span>จ่ายทั่วไป: ฿{formatNumber(generalExpense)}</span>
-                  <span>Out-Lab: ฿{formatNumber(outLabExpense)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* (1) รายได้สุทธิ (Profit Summary Card) */}
-            <div className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-500 text-white rounded-xl shadow-xs">
-                  <TrendingUp size={20} />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-emerald-800 tracking-wide uppercase">รายได้สุทธิประจำวัน</span>
-                  <span className="text-[11px] text-gray-400 block mt-0.5">สูตร: (เงินสด + เงินโอน) - รายจ่าย</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className={`text-2xl font-black ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                  ฿ {formatNumber(netProfit)}
-                </span>
-              </div>
-            </div>
-
-            {/* เตือน Out-Lab */}
-            {outLabExpense > 0 && (
-              <div className="p-4 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl flex items-start gap-3 animate-pulse" id="outlab-reserve-alert">
-                <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={18} />
-                <div>
-                  <h5 className="text-sm font-bold text-rose-900">ต้องกันเงิน Out-Lab!</h5>
-                  <p className="text-xs text-rose-700 mt-0.5">
-                    กรุณากันเงินสำรองจ่าย Out-Lab ออกจากจำนวนเงินสดหน้าร้านวันนี้ เป็นจำนวนกลมๆ{' '}
-                    <span className="font-extrabold text-rose-900 underline">฿ {formatNumber(outLabExpense)}</span> นำส่งแล็บพาร์ทเนอร์ในภายหลัง
-                  </p>
-                </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs font-bold">
+                <Building2 size={24} />
               </div>
             )}
+            <div className="space-y-1 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+                  {businessName}
+                </h2>
+                {businessCode && (
+                  <span className="px-2 py-0.5 text-xs font-mono font-black bg-emerald-100 text-emerald-800 rounded uppercase">
+                    {businessCode}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
+                ใบประเมินกำไรและตรวจนับเงินสด (Profit Evaluation & Cash Verification)
+              </p>
+              <p className="text-[11px] text-gray-400">
+                โหมดการตรวจสอบ: {viewMode === 'day' ? 'สรุปรายวันเดี่ยว' : 'สรุปช่วงเวลาสะสม / รายเดือน'}
+              </p>
+            </div>
+          </div>
+
+          <div className="text-left sm:text-right shrink-0 bg-slate-50 p-3 rounded-2xl border border-slate-200 self-start sm:self-auto min-w-[180px]">
+            <span className="text-[10px] font-bold text-gray-400 block uppercase">ช่วงเวลาประเมินผล</span>
+            <span className="text-xs md:text-sm font-black text-slate-800 block mt-0.5 font-mono">
+              {viewMode === 'day' ? currentDate : `${rangeData.startDate} ~ ${rangeData.endDate}`}
+            </span>
+            <span className="text-[10px] text-slate-500 font-semibold block mt-0.5">
+              {viewMode === 'day' ? '1 วัน' : `บันทึกข้อมูล ${rangeData.daysWithRecords} วัน`}
+            </span>
           </div>
         </div>
 
-        {/* (2) ตรวจสอบเงินสด (Cash Verification Pane) */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-xs border border-gray-100 flex flex-col justify-between h-full">
-            <div className="space-y-4">
-              <span className="text-base font-bold text-gray-800 border-b pb-2.5 block">ตรวจสอบเงินสดหน้างาน</span>
-
-              <div className="p-4 bg-slate-900 text-white rounded-xl space-y-1.5">
-                <span className="text-[11px] text-slate-400 uppercase tracking-widest block font-medium">
-                  ยอดเงินสดตามระบบที่ควรจะมี
+        {/* ตารางแสดงตัวเลขหลัก 2 ฝั่ง (ฝั่งซ้าย: กระดานการเงิน / ฝั่งขวา: ตรวจสอบเงินสด) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* ซีกซ้าย (7 คอลัมน์): บอร์ดการเงิน และรายได้สุทธิ */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="bg-slate-50/50 p-5 md:p-6 rounded-2xl border border-gray-200/80 space-y-6">
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-sm md:text-base font-extrabold text-gray-800">
+                  การคำนวณรายได้สุทธิ และสถานะบัญชี
                 </span>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-black text-emerald-400">
-                    ฿ {formatNumber(expectedCash)}
-                  </span>
-                  <span className="text-[10px] text-slate-400">(เงินสดในมือหลังหักค่าใช้จ่าย)</span>
-                </div>
-                <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800">
-                  คำนวณจาก: รับเงินสด (฿{formatNumber(cashIncome)}) - จ่ายรวม (฿{formatNumber(totalExpense)})
-                </div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  {activeFinancials.title}
+                </span>
               </div>
 
-              {/* ตารางกล่องกรอกเงินสดที่นับได้ */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-600 block">เงินสดที่นับได้จริง (Counted Cash):</label>
-                <div className="relative">
-                  <Coins className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="number"
-                    value={countedCash || ''}
-                    id="counted-cash-input"
-                    onChange={(e) => setCountedCash(parseFloat(e.target.value) || 0)}
-                    placeholder="ใส่จำนวนเงินสดที่ตรวจนับจริง"
-                    className="w-full text-lg font-bold pl-10 pr-8 py-2.5 border border-gray-200 outline-none rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
-                  />
-                  <span className="absolute right-3 top-3 text-sm text-gray-400">฿</span>
-                </div>
-              </div>
-
-              {/* เปรียบเทียบแจ้งเตือน */}
-              <div className="pt-2">
-                {isCorrect ? (
-                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-800 font-semibold text-xs" id="status-cash-correct">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>เงินถูกต้อง</span>
+              {/* การวิเคราะห์แผ่นกระดาษ: รายรับ vs รายจ่าย */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* กล่องรายรับ */}
+                <div className="p-4 bg-white rounded-xl border border-gray-200/90 shadow-2xs flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="text-xs text-gray-400 font-bold block mb-1">
+                      รายรับทั้งหมด (เงินสด + โอน)
+                    </span>
+                    <span className="text-2xl font-black text-slate-800">
+                      ฿ {formatNumber(activeFinancials.totalIncome)}
+                    </span>
                   </div>
-                ) : (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-1.5 text-rose-800 text-xs" id="status-cash-incorrect">
-                    <div className="flex items-center gap-2 font-bold text-rose-900">
-                      <AlertTriangle className="text-rose-600 shrink-0" size={16} />
-                      {diff < 0 ? (
-                        <span>ขาด {formatNumber(Math.abs(diff))} บาท</span>
-                      ) : (
-                        <span>เกิน {formatNumber(diff)} บาท</span>
-                      )}
+                  <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex flex-col gap-1">
+                    <div className="flex justify-between">
+                      <span className="text-emerald-700 font-semibold">เงินสด:</span>
+                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.cashIncome)}</span>
                     </div>
-                    <p className="text-gray-500 text-[11px]">
-                      ยอดเงินจริงไม่ตรงกับระบบบัญชีคณนา กรุณากรอก "หมายเหตุ" กำกับเรื่องขาดหรือเกินด้านล่างนี้
+                    <div className="flex justify-between">
+                      <span className="text-blue-700 font-semibold">เงินโอน:</span>
+                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.transferIncome)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* กล่องรายจ่าย */}
+                <div className="p-4 bg-white rounded-xl border border-gray-200/90 shadow-2xs flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="text-xs text-gray-400 font-bold block mb-1">
+                      รายจ่ายรวมทั้งหมด (ทั่วไป + Out-Lab)
+                    </span>
+                    <span className="text-2xl font-black text-rose-600">
+                      ฿ {formatNumber(activeFinancials.totalExpense)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex flex-col gap-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">จ่ายทั่วไป:</span>
+                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.generalExpense)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-rose-700 font-semibold">Out-Lab (แล็บนอก):</span>
+                      <span className="font-bold font-mono">฿ {formatNumber(activeFinancials.outLabExpense)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* การ์ดรายได้สุทธิ (Net Profit) */}
+              <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
+                    <TrendingUp size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-emerald-900 tracking-wide uppercase block">
+                      {viewMode === 'day' ? 'รายได้สุทธิประจำวัน' : 'รายได้สุทธิสะสมประจำช่วง / เดือน'}
+                    </span>
+                    <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
+                      สูตร: รายรับรวม (สด+โอน) - รายจ่ายรวม (ทั่วไป+OutLab)
+                    </span>
+                    {viewMode === 'range' && activeFinancials.activeDays > 0 && (
+                      <span className="text-[10px] text-emerald-800 font-bold block mt-1">
+                        เฉลี่ยวันละ ฿ {formatNumber(activeFinancials.netProfit / activeFinancials.activeDays)} (จาก {activeFinancials.activeDays} วันที่มีข้อมูล)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-left sm:text-right self-end sm:self-auto">
+                  <span className={`text-2xl md:text-3xl font-black ${activeFinancials.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    ฿ {formatNumber(activeFinancials.netProfit)}
+                  </span>
+                </div>
+              </div>
+
+              {/* แจ้งเตือนยอดกันเงิน Out-Lab */}
+              {activeFinancials.outLabExpense > 0 && (
+                <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-start gap-3" id="outlab-reserve-alert">
+                  <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={20} />
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-rose-900 uppercase">
+                      ยอดเงินที่ต้องกันสำรองจ่าย Out-Lab!
+                    </h5>
+                    <p className="text-xs text-rose-700 leading-relaxed">
+                      กรุณากันเงินสำรองจ่าย Out-Lab ออกจากจำนวนเงินสด เป็นจำนวน{' '}
+                      <span className="font-black text-rose-900 underline font-mono text-sm">
+                        ฿ {formatNumber(activeFinancials.outLabExpense)}
+                      </span>{' '}
+                      เพื่อเตรียมเคลียร์ยอดส่งแล็บพาร์ทเนอร์
                     </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ซีกขวา (5 คอลัมน์): ตรวจสอบเงินสดหน้างาน (Cash Verification Pane) */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-white p-5 md:p-6 rounded-2xl shadow-xs border border-gray-200/90 flex flex-col justify-between h-full space-y-5">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2.5">
+                  <span className="text-sm md:text-base font-extrabold text-gray-800">
+                    ตรวจสอบเงินสดหน้างาน
+                  </span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                    {viewMode === 'day' ? 'นับเงินสดรายวัน' : 'นับเงินสดประจำช่วง/เดือน'}
+                  </span>
+                </div>
+
+                {/* กล่องแสดงยอดเงินสดตามระบบที่ควรจะมี */}
+                <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest block font-bold">
+                    ยอดเงินสดตามระบบที่ควรจะมี (Expected Cash)
+                  </span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl md:text-3xl font-black text-emerald-400 font-mono">
+                      ฿ {formatNumber(activeFinancials.expectedCash)}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      (เงินสดคงเหลือสุทธิ)
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 pt-1.5 border-t border-slate-800 leading-relaxed font-mono">
+                    คำนวณจาก: รับเงินสด (฿{formatNumber(activeFinancials.cashIncome)}) - จ่ายรวม (฿{formatNumber(activeFinancials.totalExpense)})
+                  </div>
+                </div>
+
+                {/* กล่องกรอกเงินสดที่ตรวจนับได้จริง */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700 block flex items-center justify-between">
+                    <span>เงินสดที่นับได้จริง (Counted Cash):</span>
+                    {viewMode === 'range' && (
+                      <span className="text-[10px] text-blue-600 font-semibold">ยอดตรวจนับ ณ สิ้นงวด/สิ้นเดือน</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Coins className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                    <input
+                      type="number"
+                      value={countedCash || ''}
+                      id="counted-cash-input"
+                      onChange={(e) => setCountedCash(parseFloat(e.target.value) || 0)}
+                      placeholder="ใส่จำนวนเงินสดที่ตรวจนับจริง"
+                      className="w-full text-lg font-black pl-10 pr-8 py-2.5 border-2 border-gray-200 outline-none rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white transition-all font-mono"
+                    />
+                    <span className="absolute right-3.5 top-3 text-sm font-bold text-gray-400">฿</span>
+                  </div>
+                </div>
+
+                {/* ผลการเปรียบเทียบ (Verification Status) */}
+                <div className="pt-1">
+                  {isCorrect ? (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-800 font-bold text-xs" id="status-cash-correct">
+                      <CheckCircle className="text-emerald-600 shrink-0" size={18} />
+                      <div>
+                        <span>ยอดเงินสดถูกต้อง 100% (ตรงกับระบบ)</span>
+                        <p className="text-[10px] text-emerald-600 font-medium">เงินในเกะตรงกับยอดทางบัญชีพอดี</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-1 text-rose-800 text-xs" id="status-cash-incorrect">
+                      <div className="flex items-center gap-2 font-black text-rose-900">
+                        <AlertTriangle className="text-rose-600 shrink-0" size={18} />
+                        {diff < 0 ? (
+                          <span>เงินสดขาด ฿{formatNumber(Math.abs(diff))}</span>
+                        ) : (
+                          <span>เงินสดเกิน ฿{formatNumber(diff)}</span>
+                        )}
+                      </div>
+                      <p className="text-slate-600 text-[11px] leading-relaxed">
+                        ยอดเงินสดจริงไม่ตรงกับระบบ กรุณากรอก "หมายเหตุ" กำกับเรื่องขาดหรือเกินด้านล่าง
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* ช่องกรอกหมายเหตุ */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-700 block flex items-center justify-between">
+                    <span>หมายเหตุการตรวจนับ (Note):</span>
+                    {!isCorrect && (
+                      <span className="text-[10px] text-rose-600 font-black">* จำเป็นต้องระบุเหตุผล</span>
+                    )}
+                  </label>
+                  <textarea
+                    value={note}
+                    id="cash-note-textarea"
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="เช่น เงินทอนผิด, จ่ายค่าส่งพัสดุด่วนยังไม่ได้คีย์, ลูกค้าให้ทิปเกิน ฯลฯ"
+                    rows={2}
+                    className="w-full p-2.5 border border-gray-200 outline-none rounded-xl text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100 bg-gray-50/50"
+                  />
+                </div>
+
+                {/* ข้อผิดพลาด Validation */}
+                {validationError && (
+                  <div className="p-3 bg-rose-100 border-l-4 border-rose-500 rounded text-rose-800 text-xs font-bold leading-relaxed">
+                    {validationError}
+                  </div>
+                )}
+
+                {/* ข้อมูลประวัติการบันทึกช่วงเวลานี้ล่าสุด */}
+                {viewMode === 'range' && lastSavedPeriodInfo && (
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
+                    <span className="flex items-center gap-1 font-semibold">
+                      <Clock size={12} className="text-slate-400" />
+                      <span>บันทึกล่าสุด: {new Date(lastSavedPeriodInfo.savedAt).toLocaleDateString('th-TH')}</span>
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      นับได้: ฿{formatNumber(lastSavedPeriodInfo.countedCash)}
+                    </span>
                   </div>
                 )}
               </div>
 
-              {/* ช่องหมายเหตุ */}
-              <div className="space-y-1 pt-1">
-                <label className="text-xs font-semibold text-gray-600 block flex items-center justify-between">
-                  <span>หมายเหตุ (Note):</span>
-                  {!isCorrect && (
-                    <span className="text-[10px] text-rose-600 font-bold">* บังคับกรอก</span>
-                  )}
-                </label>
-                <textarea
-                  value={note}
-                  id="cash-note-textarea"
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="เช่น ตังค์ทอนผิด, จ่ายค่าส่งของลืมคีย์, รับมาเกินเป็นทิป ฯลฯ"
-                  rows={2}
-                  className="w-full p-2.5 border border-gray-200 outline-none rounded-lg text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100 bg-gray-50/50"
-                />
+              {/* ปุ่มบันทึกการตรวจนับ */}
+              <div className="pt-3 border-t border-gray-150 print:hidden">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Save size={15} />
+                  <span>
+                    {viewMode === 'day' ? 'ยืนยันและบันทึกตรวจนับรายวัน' : 'ยืนยันและบันทึกตรวจนับประจำช่วง/เดือน'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* กรณีดูเป็นช่วงวันที่ (Date Range / Month): ตารางแจกแจงรายวัน (Daily Breakdown Table) */}
+        {viewMode === 'range' && (
+          <div className="mt-8 pt-6 border-t-2 border-slate-100 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <FileText className="text-emerald-600" size={18} />
+                  <span>ตารางแจกแจงรายวันในช่วงเวลา ({rangeData.startDate} ถึง {rangeData.endDate})</span>
+                </h3>
+                <p className="text-xs text-gray-500">
+                  แสดงรายละเอียดรายรับ-รายจ่าย กำไรสุทธิ และยอดเงินสดของแต่ละวันภายในช่วงที่เลือก
+                </p>
               </div>
 
-              {/* ข้อผิดพลาด Validation */}
-              {validationError && (
-                <div className="p-3 bg-red-100 border-l-4 border-red-500 rounded text-red-800 text-xs font-bold leading-relaxed">
-                  {validationError}
-                </div>
-              )}
+              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-xl">
+                รวม {rangeData.matchedDates.length} วัน (มีรายการ {rangeData.daysWithRecords} วัน)
+              </span>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-gray-100 flex justify-end">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-100 transition-all text-center"
-              >
-                ตรวจยืนยันและอัปเดตยอดเงิน
-              </button>
-            </div>
+            {rangeData.dailyBreakdown.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 bg-slate-50 rounded-2xl border border-dashed border-gray-200">
+                ยังไม่มีข้อมูลบันทึกในระบบสำหรับช่วงวันที่นี้
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-2xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-white uppercase text-[10px] tracking-wider">
+                      <th className="p-3 font-bold">วันที่</th>
+                      <th className="p-3 font-bold text-right">รับสด (฿)</th>
+                      <th className="p-3 font-bold text-right">รับโอน (฿)</th>
+                      <th className="p-3 font-bold text-right">รายรับรวม (฿)</th>
+                      <th className="p-3 font-bold text-right">จ่ายทั่วไป (฿)</th>
+                      <th className="p-3 font-bold text-right">Out-Lab (฿)</th>
+                      <th className="p-3 font-bold text-right">จ่ายรวม (฿)</th>
+                      <th className="p-3 font-bold text-right">กำไรสุทธิ (฿)</th>
+                      <th className="p-3 font-bold text-right">เงินสดควรมี (฿)</th>
+                      <th className="p-3 font-bold text-center">ตรวจนับรายวัน</th>
+                      <th className="p-3 font-bold text-center print:hidden">การกระทำ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-150 bg-white">
+                    {rangeData.dailyBreakdown.map((item, idx) => (
+                      <tr
+                        key={item.date}
+                        className={`hover:bg-emerald-50/40 transition-colors ${
+                          idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                        }`}
+                      >
+                        <td className="p-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                          {item.date}
+                        </td>
+                        <td className="p-3 font-mono text-right text-emerald-800 font-semibold">
+                          {formatNumber(item.cashIncome)}
+                        </td>
+                        <td className="p-3 font-mono text-right text-blue-800 font-semibold">
+                          {formatNumber(item.transferIncome)}
+                        </td>
+                        <td className="p-3 font-mono text-right font-black text-slate-900 bg-slate-50/80">
+                          {formatNumber(item.totalIncome)}
+                        </td>
+                        <td className="p-3 font-mono text-right text-slate-700">
+                          {formatNumber(item.generalExpense)}
+                        </td>
+                        <td className="p-3 font-mono text-right text-rose-700 font-semibold">
+                          {formatNumber(item.outLabExpense)}
+                        </td>
+                        <td className="p-3 font-mono text-right font-black text-rose-600 bg-slate-50/80">
+                          {formatNumber(item.totalExpense)}
+                        </td>
+                        <td className={`p-3 font-mono text-right font-black ${
+                          item.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                        }`}>
+                          {formatNumber(item.netProfit)}
+                        </td>
+                        <td className="p-3 font-mono text-right font-bold text-slate-800">
+                          {formatNumber(item.expectedCash)}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          {item.isCounted ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                              <CheckCircle size={11} />
+                              <span>ตรวจแล้ว (฿{formatNumber(item.countedCash)})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 font-semibold">
+                              ยังไม่ได้บันทึก
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center print:hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleJumpToDay(item.date)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <span>ตรวจรายวันนี้</span>
+                            <ChevronRight size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {/* แถวสรุปรวมทั้งหมด */}
+                  <tfoot>
+                    <tr className="bg-slate-900 text-white font-black text-xs">
+                      <td className="p-3 uppercase">รวมทั้งสิ้น</td>
+                      <td className="p-3 font-mono text-right text-emerald-400">
+                        {formatNumber(rangeData.totalCashIncome)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-blue-400">
+                        {formatNumber(rangeData.totalTransferIncome)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-white">
+                        {formatNumber(rangeData.totalIncome)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-slate-300">
+                        {formatNumber(rangeData.totalGeneralExpense)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-rose-400">
+                        {formatNumber(rangeData.totalOutLabExpense)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-rose-400">
+                        {formatNumber(rangeData.totalExpense)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-emerald-400">
+                        {formatNumber(rangeData.netProfit)}
+                      </td>
+                      <td className="p-3 font-mono text-right text-emerald-400">
+                        {formatNumber(rangeData.expectedCash)}
+                      </td>
+                      <td className="p-3 text-center text-slate-400 text-[10px]">
+                        ยอดรวมทั้งช่วง
+                      </td>
+                      <td className="p-3 text-center print:hidden"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ส่วนลงนาม สำหรับหน้าพิมพ์รายงาน (Print Only) */}
+        <div className="hidden print:grid grid-cols-2 gap-12 pt-12 mt-8 border-t border-slate-300 text-center text-xs">
+          <div className="space-y-8">
+            <p className="font-semibold text-slate-700">ผู้ตรวจนับเงินสด</p>
+            <div className="border-b border-dotted border-slate-400 w-48 mx-auto"></div>
+            <p className="text-slate-500">(........................................................)</p>
+            <p className="text-[10px] text-slate-400">วันที่: ......./......./...........</p>
+          </div>
+          <div className="space-y-8">
+            <p className="font-semibold text-slate-700">ผู้ตรวจสอบ / เจ้าของกิจการ</p>
+            <div className="border-b border-dotted border-slate-400 w-48 mx-auto"></div>
+            <p className="text-slate-500">(........................................................)</p>
+            <p className="text-[10px] text-slate-400">วันที่: ......./......./...........</p>
           </div>
         </div>
       </div>
 
-      {/* Toast Alert */}
+      {/* กล่องข้อความ Toast แจ้งเตือนเมื่อบันทึกสำเร็จ */}
       <AnimatePresence>
         {showSavedToast && (
           <motion.div
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-6 right-6 bg-slate-900 border border-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50"
+            className="fixed bottom-6 right-6 bg-slate-900 border border-slate-800 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50"
           >
-            <CheckCircle className="text-emerald-400" size={20} />
+            <CheckCircle className="text-emerald-400" size={22} />
             <div>
-              <p className="text-sm font-semibold">ตรวจสอบเงินสดเรียบร้อย</p>
-              <p className="text-xs text-slate-400">เก็บบันทึกข้อมูลการนับและลอจิกกำกับเงินแล้ว</p>
+              <p className="text-xs font-black">
+                {viewMode === 'day' ? 'ตรวจสอบเงินสดประจำวันเรียบร้อย' : 'ตรวจสอบเงินสดประจำช่วงเวลา/เดือนเรียบร้อย'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                เก็บบันทึกข้อมูลการนับ ผลต่าง และหมายเหตุลงในระบบเรียบร้อยแล้ว
+              </p>
             </div>
           </motion.div>
         )}
