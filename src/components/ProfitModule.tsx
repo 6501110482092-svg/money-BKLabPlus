@@ -79,6 +79,14 @@ function getLastNDaysRange(days: number): { start: string; end: string } {
   return { start: formatD(startObj), end: formatD(endObj) };
 }
 
+function getTodayThaiFormatted(): string {
+  const d = new Date();
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const beYear = d.getFullYear() + 543;
+  return `${day}/${month}/${beYear}`;
+}
+
 export default function ProfitModule({
   currentDate,
   onDateChange,
@@ -172,6 +180,40 @@ export default function ProfitModule({
   const handleProfitOwnerSigSubChange = (val: string) => {
     setProfitOwnerSigSub(val);
     localStorage.setItem('bklabplus_sig_profit_owner_sub', val);
+  };
+
+  // ชื่อในวงเล็บและวันที่สำหรับผู้ลงนามช่องที่ 1
+  const [profitSig1Name, setProfitSig1Name] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_name1') || '';
+  });
+  const [profitSig1Date, setProfitSig1Date] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_date1') || '';
+  });
+
+  const handleProfitSig1NameChange = (val: string) => {
+    setProfitSig1Name(val);
+    localStorage.setItem('bklabplus_sig_profit_name1', val);
+  };
+  const handleProfitSig1DateChange = (val: string) => {
+    setProfitSig1Date(val);
+    localStorage.setItem('bklabplus_sig_profit_date1', val);
+  };
+
+  // ชื่อในวงเล็บและวันที่สำหรับผู้ลงนามช่องที่ 2
+  const [profitSig2Name, setProfitSig2Name] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_name2') || '';
+  });
+  const [profitSig2Date, setProfitSig2Date] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_date2') || '';
+  });
+
+  const handleProfitSig2NameChange = (val: string) => {
+    setProfitSig2Name(val);
+    localStorage.setItem('bklabplus_sig_profit_name2', val);
+  };
+  const handleProfitSig2DateChange = (val: string) => {
+    setProfitSig2Date(val);
+    localStorage.setItem('bklabplus_sig_profit_date2', val);
   };
 
   // สถานะเปิด/ปิดแสดงผลส่วนลงนามในรายงาน
@@ -1334,14 +1376,24 @@ export default function ProfitModule({
 
         {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำหรับแสดงผลบนจอ และสั่ง Print / Export PDF) */}
         {showProfitSignature && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 mt-8 border-t border-slate-200 text-xs">
+          <div className="grid grid-cols-2 print:grid-cols-2 gap-6 print:gap-4 pt-6 mt-6 border-t border-slate-200 text-xs break-inside-avoid print:break-inside-avoid">
             {/* ฝั่งซ้าย: ผู้ตรวจนับเงินสด / ผู้ตรวจสอบประจำวัน / รายเดือนสรุป */}
             <div className="flex flex-col items-center justify-end text-center">
-              <div className="w-64 space-y-3">
-                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
-                <p className="text-slate-400 text-xs font-mono select-none">
-                  (........................................................)
-                </p>
+              <div className="w-64 max-w-full space-y-2">
+                <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+                {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+                <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                  <span className="font-bold select-none text-slate-500">(</span>
+                  <input
+                    type="text"
+                    value={profitSig1Name}
+                    onChange={(e) => handleProfitSig1NameChange(e.target.value)}
+                    placeholder=".........................................."
+                    className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-emerald-500 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                  />
+                  <span className="font-bold select-none text-slate-500">)</span>
+                </div>
                 <div className="space-y-1 group">
                   {viewMode === 'day' ? (
                     <>
@@ -1386,19 +1438,56 @@ export default function ProfitModule({
                     ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
                   </p>
                 </div>
-                <p className="text-[10px] text-slate-400 pt-1">
-                  วันที่: ......./......./...........
-                </p>
+                {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                  <span className="font-medium text-slate-600">วันที่:</span>
+                  <input
+                    type="text"
+                    value={profitSig1Date}
+                    onChange={(e) => handleProfitSig1DateChange(e.target.value)}
+                    placeholder="....... / ....... / ............"
+                    className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-emerald-500 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleProfitSig1DateChange(getTodayThaiFormatted())}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                    title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                  >
+                    📅 วันนี้
+                  </button>
+                  {profitSig1Date && (
+                    <button
+                      type="button"
+                      onClick={() => handleProfitSig1DateChange('')}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                      title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* ฝั่งขวา: ผู้ตรวจสอบ / เจ้าของกิจการ */}
             <div className="flex flex-col items-center justify-end text-center">
-              <div className="w-64 space-y-3">
-                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
-                <p className="text-slate-400 text-xs font-mono select-none">
-                  (........................................................)
-                </p>
+              <div className="w-64 max-w-full space-y-2">
+                <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+                {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+                <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                  <span className="font-bold select-none text-slate-500">(</span>
+                  <input
+                    type="text"
+                    value={profitSig2Name}
+                    onChange={(e) => handleProfitSig2NameChange(e.target.value)}
+                    placeholder=".........................................."
+                    className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-emerald-500 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                  />
+                  <span className="font-bold select-none text-slate-500">)</span>
+                </div>
                 <div className="space-y-1 group">
                   <input
                     type="text"
@@ -1420,9 +1509,36 @@ export default function ProfitModule({
                     ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
                   </p>
                 </div>
-                <p className="text-[10px] text-slate-400 pt-1">
-                  วันที่: ......./......./...........
-                </p>
+                {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                  <span className="font-medium text-slate-600">วันที่:</span>
+                  <input
+                    type="text"
+                    value={profitSig2Date}
+                    onChange={(e) => handleProfitSig2DateChange(e.target.value)}
+                    placeholder="....... / ....... / ............"
+                    className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-emerald-500 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleProfitSig2DateChange(getTodayThaiFormatted())}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                    title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                  >
+                    📅 วันนี้
+                  </button>
+                  {profitSig2Date && (
+                    <button
+                      type="button"
+                      onClick={() => handleProfitSig2DateChange('')}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                      title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

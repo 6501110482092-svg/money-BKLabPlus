@@ -327,3 +327,96 @@ export function savePeriodCashCheck(record: PeriodCashCheckRecord) {
   }
 }
 
+/**
+ * ส่งออกข้อมูลทั้งหมดของระบบในรูปแบบ JSON สำหรับสำรองข้อมูลระยะยาว 20-50 ปี
+ */
+export function exportAllDataBackup(): { jsonString: string; stats: { totalDays: number; totalBusinesses: number; totalLabTests: number; sizeBytes: number } } {
+  const businesses = loadBusinesses();
+  const labTests = loadLabTests();
+  const allRecordsByBiz = loadAllRecordsByBusiness();
+
+  let totalDays = 0;
+  Object.values(allRecordsByBiz).forEach((bizRecords) => {
+    totalDays += Object.keys(bizRecords).length;
+  });
+
+  const backupPayload = {
+    appVersion: '2.0-bklabplus',
+    exportDate: new Date().toISOString(),
+    systemInfo: {
+      storageEngine: 'Firestore & Offline LocalCache',
+      recommendedMaxRetentionYears: '50+ Years',
+    },
+    businesses,
+    labTests,
+    recordsByBusiness: allRecordsByBiz,
+  };
+
+  const jsonString = JSON.stringify(backupPayload, null, 2);
+  const sizeBytes = new Blob([jsonString]).size;
+
+  return {
+    jsonString,
+    stats: {
+      totalDays,
+      totalBusinesses: businesses.length,
+      totalLabTests: labTests.length,
+      sizeBytes,
+    },
+  };
+}
+
+/**
+ * นำเข้าข้อมูลจากไฟล์สำรอง JSON กู้คืนกลับเข้าระบบทั้ง LocalStorage และ Firebase
+ */
+export function restoreDataBackup(jsonString: string): { success: boolean; message: string; stats?: any } {
+  try {
+    const data = JSON.parse(jsonString);
+    if (!data || typeof data !== 'object') {
+      return { success: false, message: 'รูปแบบไฟล์ไม่ถูกต้อง กรุณาเลือกไฟล์สำรอง JSON ของระบบ BKLAB+' };
+    }
+
+    // กู้คืนข้อมูลธุรกิจ (Businesses)
+    if (Array.isArray(data.businesses) && data.businesses.length > 0) {
+      saveBusinesses(data.businesses);
+    }
+
+    // กู้คืนชุดตรวจ (Lab Tests)
+    if (Array.isArray(data.labTests)) {
+      saveLabTests(data.labTests);
+    }
+
+    // กู้คืนบันทึกรายวัน (Records by Business)
+    let restoredCount = 0;
+    if (data.recordsByBusiness && typeof data.recordsByBusiness === 'object') {
+      Object.keys(data.recordsByBusiness).forEach((bizId) => {
+        const bizRecords = data.recordsByBusiness[bizId];
+        if (bizRecords && typeof bizRecords === 'object') {
+          const bizKey = `${RECORDS_KEY}_${bizId}`;
+          localStorage.setItem(bizKey, JSON.stringify(bizRecords));
+
+          Object.keys(bizRecords).forEach((d) => {
+            const rec = bizRecords[d];
+            if (rec) {
+              saveRecordToFirebase(d, rec, bizId);
+              restoredCount++;
+            }
+          });
+        }
+      });
+    }
+
+    return {
+      success: true,
+      message: `กู้คืนข้อมูลสำเร็จ! นำเข้าข้อมูลรายวันแล้ว ${restoredCount} รายการ`,
+      stats: {
+        restoredDays: restoredCount,
+        exportDate: data.exportDate || 'ไม่ระบุ',
+      },
+    };
+  } catch (err: any) {
+    return { success: false, message: 'เกิดข้อผิดพลาดในการอ่านไฟล์: ' + (err.message || 'Unknown error') };
+  }
+}
+
+

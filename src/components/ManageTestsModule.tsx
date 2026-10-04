@@ -5,9 +5,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { LabTestTemplate, Business, FixCostItem } from '../types';
-import { loadLabTests, saveLabTests, loadBusinesses, saveBusinesses, saveActiveBusinessId } from '../utils/storage';
+import { 
+  loadLabTests, 
+  saveLabTests, 
+  loadBusinesses, 
+  saveBusinesses, 
+  saveActiveBusinessId,
+  exportAllDataBackup,
+  restoreDataBackup,
+} from '../utils/storage';
 import { subscribeToLabTests, subscribeToBusinesses } from '../utils/firebase';
-import { getBusinessColorClasses, formatNumber, compressImageFile } from '../constants';
+import { getBusinessColorClasses, formatNumber, compressImageFile, getTodayDateString } from '../constants';
 import {
   Plus,
   Trash2,
@@ -26,6 +34,16 @@ import {
   Coins,
   Upload,
   Image as ImageIcon,
+  Download,
+  Database,
+  HardDrive,
+  ShieldCheck,
+  FileJson,
+  RotateCcw,
+  HelpCircle,
+  Activity,
+  CheckCircle,
+  Lock,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -34,6 +52,7 @@ interface ManageTestsModuleProps {
   activeBusinessId?: string;
   onSelectBusiness?: (id: string) => void;
   onBusinessesChange?: (businesses: Business[]) => void;
+  onNavigateToBackup?: () => void;
 }
 
 export default function ManageTestsModule({
@@ -41,6 +60,7 @@ export default function ManageTestsModule({
   activeBusinessId: propActiveBusinessId,
   onSelectBusiness,
   onBusinessesChange,
+  onNavigateToBackup,
 }: ManageTestsModuleProps) {
   // รัฐชุดตรวจแล็บ
   const [tests, setTests] = useState<LabTestTemplate[]>([]);
@@ -75,6 +95,69 @@ export default function ManageTestsModule({
   const [editFcAmount, setEditFcAmount] = useState('');
   const [editFcType, setEditFcType] = useState<'cash' | 'transfer'>('cash');
   const [editFcDueDay, setEditFcDueDay] = useState<number | 'last_day'>('last_day');
+
+  // รัฐระบบสำรองข้อมูลระยะยาว 20-50 ปี
+  const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [backupInfo, setBackupInfo] = useState<{ totalDays: number; totalBusinesses: number; totalLabTests: number; sizeBytes: number } | null>(null);
+
+  // คำนวณขนาดและสถิติข้อมูลปัจจุบันเมื่อเปิดหน้า
+  useEffect(() => {
+    try {
+      const { stats } = exportAllDataBackup();
+      setBackupInfo(stats);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const handleExportBackup = () => {
+    try {
+      const { jsonString, stats } = exportAllDataBackup();
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = getTodayDateString();
+      link.href = url;
+      link.download = `BKLabPlus_Backup_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setBackupInfo(stats);
+      setBackupMsg({
+        type: 'success',
+        text: `ดาวน์โหลดไฟล์สำรองเรียบร้อย! (${stats.totalDays} วันที่มีข้อมูล, ขนาด ${(stats.sizeBytes / 1024).toFixed(1)} KB) แนะนำให้เก็บไฟล์นี้ไว้ใน Google Drive หรือ Flash Drive สำรอง`
+      });
+    } catch (e: any) {
+      setBackupMsg({ type: 'error', text: 'เกิดข้อผิดพลาดในการสร้างไฟล์สำรอง: ' + (e?.message || 'Error') });
+    }
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        if (!window.confirm('คำเตือน: การกู้คืนข้อมูลจะนำข้อมูลจากไฟล์สำรองมาบันทึกลงในระบบและฐานข้อมูล Firebase คุณต้องการดำเนินการต่อหรือไม่?')) {
+          e.target.value = '';
+          return;
+        }
+        const res = restoreDataBackup(content);
+        if (res.success) {
+          setBackupMsg({ type: 'success', text: res.message + ' กำลังรีเฟรชระบบ...' });
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          setBackupMsg({ type: 'error', text: res.message });
+        }
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   // ซิงค์สเตทกับ props ถ้าส่งมา
   useEffect(() => {
@@ -1221,6 +1304,36 @@ export default function ManageTestsModule({
             </table>
           </div>
         </div>
+      </div>
+
+      {/* 4. ทางลัดไปยังศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (ล็อกด้วยรหัสผ่าน 140763) */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-white/10 rounded-xl border border-white/10 text-amber-400">
+            <Database size={24} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-sm sm:text-base">ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (Data Retention & Backup Center)</h3>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                <Lock size={10} /> โหมดความปลอดภัยสูง
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              ระบบได้แยกฟังก์ชันนี้เป็นโหมดเฉพาะบนแท็บหลัก ต้องใส่รหัสผ่าน <strong>140763</strong> เพื่อเข้าใช้งาน
+            </p>
+          </div>
+        </div>
+        {onNavigateToBackup && (
+          <button
+            type="button"
+            onClick={onNavigateToBackup}
+            className="shrink-0 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
+          >
+            <Lock size={15} />
+            <span>เข้าสู่โหมดสำรองข้อมูล (ใส่รหัสผ่าน)</span>
+          </button>
+        )}
       </div>
     </div>
   );

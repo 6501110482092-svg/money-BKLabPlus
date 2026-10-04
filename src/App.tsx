@@ -37,6 +37,7 @@ import ProfitModule from './components/ProfitModule';
 import DailyReportModule from './components/DailyReportModule';
 import SummaryReportModule from './components/SummaryReportModule';
 import ManageTestsModule from './components/ManageTestsModule';
+import BackupModule from './components/BackupModule';
 
 // นำเข้าไอคอนจาก lucide-react
 import {
@@ -59,10 +60,11 @@ import {
   ChevronDown,
   Check,
   Store,
+  Database,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings';
+type TabType = 'income' | 'expense' | 'profit' | 'daily' | 'summary' | 'settings' | 'backup';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -415,12 +417,13 @@ export default function App() {
 
   // แผนผังแท็บนำทางที่สวยงาม
   const tabs = [
-    { id: 'income', label: 'บันทึกรายรับ', icon: Wallet, color: 'text-emerald-600 bg-emerald-50' },
-    { id: 'expense', label: 'บันทึกรายจ่าย & Out-Lab', icon: Receipt, color: 'text-rose-600 bg-rose-50' },
-    { id: 'profit', label: 'ประมวลกำไร & นับเงินสด', icon: ClipboardCheck, color: 'text-amber-600 bg-amber-50' },
-    { id: 'daily', label: 'รายงานประจำวัน', icon: CalendarDays, color: 'text-blue-600 bg-blue-50' },
-    { id: 'summary', label: 'สรุปภาพรวมสะสม & กราฟ', icon: LineChart, color: 'text-indigo-600 bg-indigo-50' },
-    { id: 'settings', label: 'ตั้งค่ารายการ Test', icon: Settings, color: 'text-slate-600 bg-slate-50' },
+    { id: 'income', label: 'บันทึกรายรับ', icon: Wallet, color: 'text-emerald-600 bg-emerald-50', isProtected: false },
+    { id: 'expense', label: 'บันทึกรายจ่าย & Out-Lab', icon: Receipt, color: 'text-rose-600 bg-rose-50', isProtected: false },
+    { id: 'profit', label: 'ประมวลกำไร & นับเงินสด', icon: ClipboardCheck, color: 'text-amber-600 bg-amber-50', isProtected: false },
+    { id: 'daily', label: 'รายงานประจำวัน', icon: CalendarDays, color: 'text-blue-600 bg-blue-50', isProtected: false },
+    { id: 'summary', label: 'สรุปภาพรวมสะสม & กราฟ', icon: LineChart, color: 'text-indigo-600 bg-indigo-50', isProtected: false },
+    { id: 'settings', label: 'ตั้งค่ารายการ Test', icon: Settings, color: 'text-slate-600 bg-slate-50', isProtected: false },
+    { id: 'backup', label: 'ศูนย์สำรองข้อมูล 20-50 ปี', icon: Database, color: 'text-purple-600 bg-purple-50', isProtected: true },
   ];
 
   return (
@@ -667,7 +670,7 @@ export default function App() {
         </div>
 
         {/* แนะนำประโยชน์ด้านล่าง แยกลำดับ Tab ด้วยการออกแบบเปี่ยมเสน่ห์ */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 print:hidden" id="navigation-tabs-container">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 print:hidden" id="navigation-tabs-container">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isSelected = activeTab === tab.id;
@@ -675,16 +678,26 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id as TabType)}
-                className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-slate-905 bg-slate-900 text-white border-slate-800 shadow-md'
                     : 'bg-white text-gray-500 hover:text-slate-800 hover:bg-slate-50 border-gray-150 shadow-2xs'
                 }`}
               >
-                <div className={`p-2 rounded-xl mb-2 ${isSelected ? 'bg-slate-800 text-blue-400' : tab.color}`}>
+                <div className={`relative p-2 rounded-xl mb-1.5 ${isSelected ? 'bg-slate-800 text-blue-400' : tab.color}`}>
                   <Icon size={18} />
+                  {tab.isProtected && (
+                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 shadow-xs" title="โหมดนี้ล็อกด้วยรหัสผ่าน 140763">
+                      <Lock size={10} />
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] font-black tracking-wide leading-tight">{tab.label}</span>
+                {tab.isProtected && (
+                  <span className="text-[9px] text-amber-500 font-bold mt-0.5 flex items-center gap-0.5">
+                    <Lock size={9} /> รหัสผ่าน
+                  </span>
+                )}
               </button>
             );
           })}
@@ -752,6 +765,13 @@ export default function App() {
               activeBusinessId={activeBusinessId}
               onSelectBusiness={handleSelectBusiness}
               onBusinessesChange={(newList) => setBusinesses(newList)}
+              onNavigateToBackup={() => handleTabChange('backup')}
+            />
+          )}
+
+          {activeTab === 'backup' && (
+            <BackupModule
+              onNavigateTab={(targetTab) => handleTabChange(targetTab as TabType)}
             />
           )}
         </div>

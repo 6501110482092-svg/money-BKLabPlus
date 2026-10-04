@@ -104,6 +104,14 @@ interface GroupedExpense {
   transferAmount?: number;
 }
 
+function getTodayThaiFormatted(): string {
+  const d = new Date();
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const beYear = d.getFullYear() + 543;
+  return `${day}/${month}/${beYear}`;
+}
+
 export default function SummaryReportModule({
   currentDate,
   activeBusinessId,
@@ -245,6 +253,12 @@ export default function SummaryReportModule({
   const [signatureSubtitle, setSignatureSubtitle] = useState<string>(() => {
     return localStorage.getItem('bklabplus_sig_summary_sub') || 'คลินิก / แล็บวิเคราะห์';
   });
+  const [signatureSignerName, setSignatureSignerName] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_summary_name') || '';
+  });
+  const [signatureDate, setSignatureDate] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_summary_date') || '';
+  });
   const [showSignatureSection, setShowSignatureSection] = useState<boolean>(() => {
     const saved = localStorage.getItem('bklabplus_sig_summary_show');
     return saved !== null ? saved === 'true' : true;
@@ -258,6 +272,16 @@ export default function SummaryReportModule({
   const handleSignatureSubtitleChange = (val: string) => {
     setSignatureSubtitle(val);
     localStorage.setItem('bklabplus_sig_summary_sub', val);
+  };
+
+  const handleSignatureSignerNameChange = (val: string) => {
+    setSignatureSignerName(val);
+    localStorage.setItem('bklabplus_sig_summary_name', val);
+  };
+
+  const handleSignatureDateChange = (val: string) => {
+    setSignatureDate(val);
+    localStorage.setItem('bklabplus_sig_summary_date', val);
   };
 
   const handleToggleSignatureSection = (val: boolean) => {
@@ -1771,7 +1795,7 @@ export default function SummaryReportModule({
 
         {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print & ตรวจสอบ) */}
         {showSignatureSection && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600">
+          <div className="grid grid-cols-2 print:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600 break-inside-avoid print:break-inside-avoid">
             {/* สรุปข้อมูลภาพรวมของช่วงเวลา */}
             <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-gray-150">
               <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80">
@@ -1802,11 +1826,22 @@ export default function SummaryReportModule({
 
             {/* ส่วนลายเซ็นและชื่อตำแหน่งใต้ลายเซ็น (พิมพ์เองและจำค่าเริ่มต้นอัตโนมัติ) */}
             <div className="flex flex-col justify-end items-end h-full">
-              <div className="w-64 text-center space-y-3">
-                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
-                <p className="text-slate-400 text-xs font-mono select-none">
-                  (........................................................)
-                </p>
+              <div className="w-64 max-w-full text-center space-y-2">
+                <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+                {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+                <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                  <span className="font-bold select-none text-slate-500">(</span>
+                  <input
+                    type="text"
+                    value={signatureSignerName}
+                    onChange={(e) => handleSignatureSignerNameChange(e.target.value)}
+                    placeholder=".........................................."
+                    className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                  />
+                  <span className="font-bold select-none text-slate-500">)</span>
+                </div>
+                {/* ตำแหน่งและสังกัด */}
                 <div className="space-y-1 group">
                   <input
                     type="text"
@@ -1827,6 +1862,36 @@ export default function SummaryReportModule({
                   <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
                     ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
                   </p>
+                </div>
+                {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                  <span className="font-medium text-slate-600">วันที่:</span>
+                  <input
+                    type="text"
+                    value={signatureDate}
+                    onChange={(e) => handleSignatureDateChange(e.target.value)}
+                    placeholder="....... / ....... / ............"
+                    className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSignatureDateChange(getTodayThaiFormatted())}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                    title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                  >
+                    📅 วันนี้
+                  </button>
+                  {signatureDate && (
+                    <button
+                      type="button"
+                      onClick={() => handleSignatureDateChange('')}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                      title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
