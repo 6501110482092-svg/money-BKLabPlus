@@ -228,6 +228,7 @@ export default function ManageTestsModule({
       amount: parsedAmount,
       type: newFcType || 'cash',
       dueDay: newFcDueDay || 'last_day',
+      showInReport: true,
     };
 
     const updatedBusinesses = businesses.map((b) => {
@@ -293,6 +294,34 @@ export default function ManageTestsModule({
       onBusinessesChange(updatedBusinesses);
     }
     setEditingFcId(null);
+  };
+
+  const handleToggleFixCostShowInReport = (fcId: string) => {
+    if (!currentFixCostBiz) return;
+    const updatedBusinesses = businesses.map((b) => {
+      if (b.id === currentFixCostBiz.id) {
+        const updatedFc = (b.fixCosts || []).map((fc) => {
+          if (fc.id === fcId) {
+            return {
+              ...fc,
+              showInReport: fc.showInReport === false ? true : false,
+            };
+          }
+          return fc;
+        });
+        return {
+          ...b,
+          fixCosts: updatedFc,
+        };
+      }
+      return b;
+    });
+
+    setBusinesses(updatedBusinesses);
+    saveBusinesses(updatedBusinesses);
+    if (onBusinessesChange) {
+      onBusinessesChange(updatedBusinesses);
+    }
   };
 
   const handleRemoveFixCost = (fixCostId: string) => {
@@ -885,6 +914,9 @@ export default function ManageTestsModule({
               <thead>
                 <tr className="bg-amber-50/70 text-amber-950 font-bold border-b border-amber-200">
                   <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
+                  <th className="py-2.5 px-3 w-28 text-center" title="ติ๊กช่องเพื่อเลือกให้แสดงหรือซ่อนในรายงาน / การลงบัญชีอัตโนมัติ">
+                    แสดงในรายงาน
+                  </th>
                   <th className="py-2.5 px-4">ชื่อรายการ Fix Cost</th>
                   <th className="py-2.5 px-3 w-28 text-center">ช่องทางจ่าย</th>
                   <th className="py-2.5 px-4 text-right w-36">จำนวนเงินที่ตั้งไว้</th>
@@ -895,7 +927,7 @@ export default function ManageTestsModule({
               <tbody className="divide-y divide-gray-100 text-slate-700">
                 {currentFixCosts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-gray-400">
+                    <td colSpan={7} className="py-10 text-center text-gray-400">
                       ยังไม่มีรายการ Fix Cost ประจำเดือนสำหรับธุรกิจนี้ (สามารถเพิ่มจากฟอร์มด้านบนได้เลยครับ)
                     </td>
                   </tr>
@@ -903,11 +935,22 @@ export default function ManageTestsModule({
                   currentFixCosts.map((fc, index) => {
                     const isEditing = editingFcId === fc.id;
                     const isVariable = !fc.amount || fc.amount === 0;
+                    const isShown = fc.showInReport !== false;
 
                     if (isEditing) {
                       return (
                         <tr key={fc.id} className="bg-amber-50/40">
                           <td className="py-2 px-3 text-center text-gray-400">{index + 1}</td>
+                          <td className="py-2 px-3 text-center">
+                            <label className="inline-flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isShown}
+                                onChange={() => handleToggleFixCostShowInReport(fc.id)}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                              />
+                            </label>
+                          </td>
                           <td className="py-2 px-4">
                             <input
                               type="text"
@@ -976,13 +1019,33 @@ export default function ManageTestsModule({
                     }
 
                     return (
-                      <tr key={fc.id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr key={fc.id} className={`hover:bg-slate-50/70 transition-colors ${!isShown ? 'bg-gray-50/50 opacity-75' : ''}`}>
                         <td className="py-2.5 px-3 text-center text-gray-400 font-mono text-[11px]">
                           {index + 1}
                         </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <label
+                            className="inline-flex items-center gap-1.5 cursor-pointer select-none"
+                            title={isShown ? 'แสดงในรายงาน (คลิกเพื่อปิด)' : 'ไม่แสดงในรายงาน (คลิกเพื่อเปิด)'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isShown}
+                              onChange={() => handleToggleFixCostShowInReport(fc.id)}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                            />
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all ${
+                              isShown
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-gray-200 text-gray-500'
+                            }`}>
+                              {isShown ? 'แสดง' : 'ไม่แสดง'}
+                            </span>
+                          </label>
+                        </td>
                         <td className="py-2.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                          <span className={`w-1.5 h-1.5 rounded-full ${isVariable ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                          <span>{fc.name}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${!isShown ? 'bg-gray-400' : isVariable ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                          <span className={!isShown ? 'text-gray-500 line-through' : ''}>{fc.name}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           {fc.type === 'transfer' ? (

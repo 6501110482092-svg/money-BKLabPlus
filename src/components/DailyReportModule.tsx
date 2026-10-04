@@ -7,7 +7,21 @@ import React from 'react';
 import { DailyRecord } from '../types';
 import { formatNumber } from '../constants';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, Printer, Calendar, ArrowRightLeft, TrendingUp, CheckCircle, AlertCircle, Bookmark, ClipboardList } from 'lucide-react';
+import {
+  FileSpreadsheet,
+  Printer,
+  Calendar,
+  ArrowRightLeft,
+  TrendingUp,
+  CheckCircle,
+  AlertCircle,
+  Bookmark,
+  ClipboardList,
+  Wallet,
+  Receipt,
+  FlaskConical,
+  Layers,
+} from 'lucide-react';
 
 interface DailyReportModuleProps {
   currentDate: string;
@@ -35,10 +49,47 @@ export default function DailyReportModule({
     localStorage.setItem('bklabplus_daily_custom_title', val);
   };
 
+  // ข้อความใต้ลายเซ็นประจำวัน (บันทึกเป็นค่าเริ่มต้นอัตโนมัติ)
+  const [signatureTitle, setSignatureTitle] = React.useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_daily_title') || 'ผู้ตรวจสอบประจำวัน';
+  });
+  const [signatureSubtitle, setSignatureSubtitle] = React.useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_daily_sub') || 'คลินิก / แล็บวิเคราะห์';
+  });
+
+  const handleSignatureTitleChange = (val: string) => {
+    setSignatureTitle(val);
+    localStorage.setItem('bklabplus_sig_daily_title', val);
+  };
+
+  const handleSignatureSubtitleChange = (val: string) => {
+    setSignatureSubtitle(val);
+    localStorage.setItem('bklabplus_sig_daily_sub', val);
+  };
+
+  // สถานะเปิด/ปิดแสดงผลแต่ละตารางในรายงาน
+  const [showIncomeTable, setShowIncomeTable] = React.useState<boolean>(true);
+  const [showExpenseTable, setShowExpenseTable] = React.useState<boolean>(true);
+  const [showOutLabTable, setShowOutLabTable] = React.useState<boolean>(true);
+  const [showCashCheckSummary, setShowCashCheckSummary] = React.useState<boolean>(true);
+
   const incomeItems = record?.incomeItems || [];
   const expenseItems = record?.expenseItems || [];
   const outLabItems = record?.outLabItems || [];
   const hasOutLab = record?.hasOutLab !== false;
+
+  const handleSelectAllTables = () => {
+    setShowIncomeTable(true);
+    setShowExpenseTable(true);
+    setShowOutLabTable(true);
+    setShowCashCheckSummary(true);
+  };
+
+  const handleHideEmptyTables = () => {
+    if (incomeItems.length === 0) setShowIncomeTable(false);
+    if (expenseItems.length === 0) setShowExpenseTable(false);
+    if (!hasOutLab || outLabItems.length === 0) setShowOutLabTable(false);
+  };
 
   // แบ่งฝั่งรายรับ
   const cashIncome = incomeItems
@@ -148,13 +199,13 @@ export default function DailyReportModule({
       ['หมายเหตุพิเศษ', '', record.cashCheck?.note || '-'],
     ];
 
-    // ผสานข้อมูลทั้งหมดลงอาร์เรย์เดียว
+    // ผสานข้อมูลทั้งหมดลงอาร์เรย์เดียวตามตารางที่เลือกแสดง
     const allData = [
       ...headerRow,
-      ...incomeRows,
-      ...expenseRows,
-      ...outLabRows,
-      ...summaryRows,
+      ...(showIncomeTable ? incomeRows : []),
+      ...(showExpenseTable ? expenseRows : []),
+      ...(showOutLabTable ? outLabRows : []),
+      ...(showCashCheckSummary ? summaryRows : []),
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(allData);
@@ -196,7 +247,7 @@ export default function DailyReportModule({
           <button
             onClick={handlePrintPDF}
             id="btn-print-report"
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-semibold text-xs transition-all shadow-xs"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer"
           >
             <Printer size={15} />
             <span>พิมพ์รายงาน / บันทึก PDF (ไทย 100%)</span>
@@ -206,11 +257,127 @@ export default function DailyReportModule({
           <button
             onClick={handleExportExcel}
             id="btn-excel-report"
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-xs transition-all shadow-xs"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-xs transition-all shadow-xs cursor-pointer"
           >
             <FileSpreadsheet size={15} />
             <span>ส่งออกตาราง Excel</span>
           </button>
+        </div>
+
+        {/* แถบตัวเลือกเปิด/ปิดการแสดงผลตาราง (Checkboxes for table display in report) */}
+        <div className="w-full pt-3 border-t border-gray-150 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-700 flex items-center gap-1.5 mr-1">
+              <Layers size={15} className="text-blue-600" />
+              <span>เลือกตารางที่ต้องการแสดงในรายงาน:</span>
+            </span>
+
+            {/* Checkbox: ตารางรายรับ */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showIncomeTable
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showIncomeTable}
+                onChange={(e) => setShowIncomeTable(e.target.checked)}
+                className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+              />
+              <span className="flex items-center gap-1">
+                <Wallet size={13} className={showIncomeTable ? 'text-emerald-600' : 'text-gray-400'} />
+                <span>ตารางรายรับ</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                incomeItems.length > 0 ? 'bg-emerald-200/70 text-emerald-900 font-bold' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {incomeItems.length}
+              </span>
+            </label>
+
+            {/* Checkbox: ตารางรายจ่ายทั่วไป */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showExpenseTable
+                ? 'bg-rose-50 border-rose-300 text-rose-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showExpenseTable}
+                onChange={(e) => setShowExpenseTable(e.target.checked)}
+                className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+              />
+              <span className="flex items-center gap-1">
+                <Receipt size={13} className={showExpenseTable ? 'text-rose-600' : 'text-gray-400'} />
+                <span>ตารางรายจ่ายทั่วไป</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                expenseItems.length > 0 ? 'bg-rose-200/70 text-rose-900 font-bold' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {expenseItems.length}
+              </span>
+            </label>
+
+            {/* Checkbox: ตารางส่งแล็บนอก Out-Lab */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showOutLabTable
+                ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showOutLabTable}
+                onChange={(e) => setShowOutLabTable(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+              />
+              <span className="flex items-center gap-1">
+                <FlaskConical size={13} className={showOutLabTable ? 'text-amber-600' : 'text-gray-400'} />
+                <span>ตารางส่งแล็บนอก</span>
+              </span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                hasOutLab && outLabItems.length > 0 ? 'bg-amber-200/70 text-amber-900 font-bold' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {hasOutLab ? outLabItems.length : 0}
+              </span>
+            </label>
+
+            {/* Checkbox: หมายเหตุ & ส่วนลงนาม */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showCashCheckSummary
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showCashCheckSummary}
+                onChange={(e) => setShowCashCheckSummary(e.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+              />
+              <span className="flex items-center gap-1">
+                <CheckCircle size={13} className={showCashCheckSummary ? 'text-indigo-600' : 'text-gray-400'} />
+                <span>หมายเหตุ & ส่วนลงนาม</span>
+              </span>
+            </label>
+          </div>
+
+          {/* ปุ่มตัวช่วยเร็ว */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleHideEmptyTables}
+              className="text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              title="ซ่อนตารางที่ไม่มีข้อมูล เพื่อไม่ให้มีตารางว่างในรายงาน"
+            >
+              ซ่อนตารางที่ว่าง
+            </button>
+            <button
+              type="button"
+              onClick={handleSelectAllTables}
+              className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+            >
+              เลือกแสดงทั้งหมด
+            </button>
+          </div>
         </div>
       </div>
 
@@ -339,233 +506,315 @@ export default function DailyReportModule({
         </div>
 
         {/* 3 ตารางหลักแสดงข้อมูล */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-2">
+        <div className={`grid gap-8 pt-2 ${
+          showIncomeTable && showExpenseTable ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
+        }`}>
           {/* 1. ตารางรายรับ */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-sm text-slate-800 border-l-4 border-emerald-500 pl-2">
-              1. รายรับทั้งหมด (Income Details)
-            </h4>
-            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
-                    <th className="py-2.5 px-3">รายการรับ</th>
-                    <th className="py-2.5 px-3 text-center">ประเภท</th>
-                    <th className="py-2.5 px-3 text-right">จำนวน (บาท)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                  {incomeItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="py-8 text-center text-gray-400">
-                        ไม่มีข้อมูลบันทึกรายรับ
-                      </td>
+          {showIncomeTable && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-sm text-slate-800 border-l-4 border-emerald-500 pl-2">
+                  1. รายรับทั้งหมด (Income Details)
+                </h4>
+                <label className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-emerald-50 px-2 py-0.5 rounded-lg border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showIncomeTable}
+                    onChange={(e) => setShowIncomeTable(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                  />
+                  <span className="text-[11px] font-medium">แสดงในรายงาน</span>
+                </label>
+              </div>
+              <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
+                      <th className="py-2.5 px-3">รายการรับ</th>
+                      <th className="py-2.5 px-3 text-center">ประเภท</th>
+                      <th className="py-2.5 px-3 text-right">จำนวน (บาท)</th>
                     </tr>
-                  ) : (
-                    incomeItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50/50">
-                        <td className="py-2 px-3 font-medium">{item.description || '-'}</td>
-                        <td className="py-2 px-3 text-center">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                              item.type === 'cash'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
-                                : 'bg-blue-50 text-blue-800 border border-blue-105'
-                            }`}
-                          >
-                            {item.type === 'cash' ? 'เงินสด' : 'เงินโอน'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-medium">
-                          {formatNumber(item.amount)}
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                    {incomeItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 text-center text-gray-400">
+                          ไม่มีข้อมูลบันทึกรายรับ
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-emerald-50/20 text-[11px] text-gray-700 border-t border-gray-150">
-                    <td colSpan={2} className="py-2 px-3 text-right font-medium">รวมยอดเงินสด (Cash Subtotal):</td>
-                    <td className="py-2 px-3 text-right text-emerald-800 font-mono font-bold">
-                      {formatNumber(cashIncome)}
-                    </td>
-                  </tr>
-                  <tr className="bg-blue-50/20 text-[11px] text-gray-700 border-t border-gray-100">
-                    <td colSpan={2} className="py-2 px-3 text-right font-medium">รวมยอดเงินโอน (Transfer Subtotal):</td>
-                    <td className="py-2 px-3 text-right text-blue-800 font-mono font-bold">
-                      {formatNumber(transferIncome)}
-                    </td>
-                  </tr>
-                  <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t-2 border-gray-200">
-                    <td colSpan={2} className="py-2.5 px-3 text-right">
-                      ยอดรวมรายรับทั้งหมด:
-                    </td>
-                    <td className="py-2.5 px-3 text-right text-emerald-700 font-mono text-sm">
-                      {formatNumber(totalIncome)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                    ) : (
+                      incomeItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50/50">
+                          <td className="py-2 px-3 font-medium">{item.description || '-'}</td>
+                          <td className="py-2 px-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.type === 'cash'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
+                                  : 'bg-blue-50 text-blue-800 border border-blue-105'
+                              }`}
+                            >
+                              {item.type === 'cash' ? 'เงินสด' : 'เงินโอน'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-medium">
+                            {formatNumber(item.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50/20 text-[11px] text-gray-700 border-t border-gray-150">
+                      <td colSpan={2} className="py-2 px-3 text-right font-medium">รวมยอดเงินสด (Cash Subtotal):</td>
+                      <td className="py-2 px-3 text-right text-emerald-800 font-mono font-bold">
+                        {formatNumber(cashIncome)}
+                      </td>
+                    </tr>
+                    <tr className="bg-blue-50/20 text-[11px] text-gray-700 border-t border-gray-100">
+                      <td colSpan={2} className="py-2 px-3 text-right font-medium">รวมยอดเงินโอน (Transfer Subtotal):</td>
+                      <td className="py-2 px-3 text-right text-blue-800 font-mono font-bold">
+                        {formatNumber(transferIncome)}
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t-2 border-gray-200">
+                      <td colSpan={2} className="py-2.5 px-3 text-right">
+                        ยอดรวมรายรับทั้งหมด:
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-emerald-700 font-mono text-sm">
+                        {formatNumber(totalIncome)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 2. ตารางรายจ่ายทั่วไป */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-sm text-slate-800 border-l-4 border-rose-500 pl-2">
-              2. รายจ่ายทั่วไป (General Expenses)
-            </h4>
-            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
-                    <th className="py-2.5 px-3">รายการรายจ่าย</th>
-                    <th className="py-2.5 px-3 text-center">ช่องทาง</th>
-                    <th className="py-2.5 px-3 text-right">จำนวน (บาท)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                  {expenseItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="py-8 text-center text-gray-400">
-                        ไม่มีค่าใช้จ่ายทั่วไปสะสม
-                      </td>
+          {showExpenseTable && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-sm text-slate-800 border-l-4 border-rose-500 pl-2">
+                  2. รายจ่ายทั่วไป (General Expenses)
+                </h4>
+                <label className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showExpenseTable}
+                    onChange={(e) => setShowExpenseTable(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                  />
+                  <span className="text-[11px] font-medium">แสดงในรายงาน</span>
+                </label>
+              </div>
+              <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
+                      <th className="py-2.5 px-3">รายการรายจ่าย</th>
+                      <th className="py-2.5 px-3 text-center">ช่องทาง</th>
+                      <th className="py-2.5 px-3 text-right">จำนวน (บาท)</th>
                     </tr>
-                  ) : (
-                    expenseItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50/50">
-                        <td className="py-2 px-3 font-medium">{item.description || '-'}</td>
-                        <td className="py-2 px-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              item.type === 'transfer'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {item.type === 'transfer' ? 'โอน' : 'สด'}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-medium text-rose-600">
-                          {formatNumber(item.amount)}
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                    {expenseItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 text-center text-gray-400">
+                          ไม่มีค่าใช้จ่ายทั่วไปสะสม
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-emerald-50/20 text-[11px] text-gray-700 border-t border-gray-150">
-                    <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินสด (หักเกะ):</td>
-                    <td className="py-1.5 px-3 text-right text-emerald-800 font-mono font-bold">
-                      {formatNumber(cashGeneralExpense)}
-                    </td>
-                  </tr>
-                  <tr className="bg-blue-50/20 text-[11px] text-gray-700 border-t border-gray-100">
-                    <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินโอน (ตัดบัญชี):</td>
-                    <td className="py-1.5 px-3 text-right text-blue-800 font-mono font-bold">
-                      {formatNumber(transferGeneralExpense)}
-                    </td>
-                  </tr>
-                  <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t-2 border-gray-200">
-                    <td colSpan={2} className="py-2.5 px-3 text-right">ยอดรวมรายจ่ายทั่วไป:</td>
-                    <td className="py-2.5 px-3 text-right text-rose-700 font-mono">
-                      {formatNumber(totalGeneralExpense)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                    ) : (
+                      expenseItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50/50">
+                          <td className="py-2 px-3 font-medium">{item.description || '-'}</td>
+                          <td className="py-2 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.type === 'transfer'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {item.type === 'transfer' ? 'โอน' : 'สด'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-medium text-rose-600">
+                            {formatNumber(item.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50/20 text-[11px] text-gray-700 border-t border-gray-150">
+                      <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินสด (หักเกะ):</td>
+                      <td className="py-1.5 px-3 text-right text-emerald-800 font-mono font-bold">
+                        {formatNumber(cashGeneralExpense)}
+                      </td>
+                    </tr>
+                    <tr className="bg-blue-50/20 text-[11px] text-gray-700 border-t border-gray-100">
+                      <td colSpan={2} className="py-1.5 px-3 text-right font-medium">รวมจ่ายเงินโอน (ตัดบัญชี):</td>
+                      <td className="py-1.5 px-3 text-right text-blue-800 font-mono font-bold">
+                        {formatNumber(transferGeneralExpense)}
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t-2 border-gray-200">
+                      <td colSpan={2} className="py-2.5 px-3 text-right">ยอดรวมรายจ่ายทั่วไป:</td>
+                      <td className="py-2.5 px-3 text-right text-rose-700 font-mono">
+                        {formatNumber(totalGeneralExpense)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 3. ตาราง Out-Lab */}
-        <div className="space-y-3 pt-2">
-          <h4 className="font-bold text-sm text-slate-800 border-l-4 border-amber-500 pl-2">
-            3. รายจ่ายส่งแล็บนอก (Out-Lab Status)
-          </h4>
-          <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
-                  <th className="py-2.5 px-3 text-center">LN (เลขแล็บ)</th>
-                  <th className="py-2.5 px-3">รายการส่งตรวจ (Test)</th>
-                  <th className="py-2.5 px-3 text-right">ค่าบริการแล็บ (บาท)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
-                {!hasOutLab ? (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-slate-400 font-medium">
-                      ไม่มีส่ง Lab (ยอด Out-Lab บันทึกเป็น 0)
-                    </td>
+        {showOutLabTable && (
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-sm text-slate-800 border-l-4 border-amber-500 pl-2">
+                3. รายจ่ายส่งแล็บนอก (Out-Lab Status)
+              </h4>
+              <label className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-amber-50 px-2 py-0.5 rounded-lg border border-slate-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showOutLabTable}
+                  onChange={(e) => setShowOutLabTable(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                />
+                <span className="text-[11px] font-medium">แสดงในรายงาน</span>
+              </label>
+            </div>
+            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-2xs">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-gray-100">
+                    <th className="py-2.5 px-3 text-center">LN (เลขแล็บ)</th>
+                    <th className="py-2.5 px-3">รายการส่งตรวจ (Test)</th>
+                    <th className="py-2.5 px-3 text-right">ค่าบริการแล็บ (บาท)</th>
                   </tr>
-                ) : outLabItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-gray-400">
-                      ไม่มีรายละเอียดส่งแล็บ
-                    </td>
-                  </tr>
-                ) : (
-                  outLabItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50/50">
-                      <td className="py-2 px-3 text-center font-mono font-bold text-amber-700">
-                        {item.labNumber || '-'}
-                      </td>
-                      <td className="py-2 px-3 font-semibold">{item.testName || '-'}</td>
-                      <td className="py-2 px-3 text-right font-mono font-semibold text-rose-500">
-                        {formatNumber(item.amount)}
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs text-gray-700">
+                  {!hasOutLab ? (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-slate-400 font-medium">
+                        ไม่มีส่ง Lab (ยอด Out-Lab บันทึกเป็น 0)
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t border-gray-150">
-                  <td colSpan={2} className="py-2.5 px-3 text-right">
-                    ยอดรวมค่าส่งแล็บนอกทั้งหมด:
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-amber-800 font-mono">
-                    {formatNumber(totalOutLab)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600">
-          <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-gray-100">
-            <span className="font-bold text-slate-800 block text-xs">สรุปหมายเหตุการตรวจสอบการเงิน</span>
-            <div className="space-y-1">
-              <p>
-                <strong>ยอดเงินสดทับจริงที่นับได้:</strong> ฿{formatNumber(countedCash)}
-              </p>
-              <p>
-                <strong>ยอดลอจิกความคลาดเคลื่อน:</strong>{' '}
-                {isCorrect ? (
-                  <span className="text-emerald-700 font-semibold">ถูกต้องตามระบบบัญชี</span>
-                ) : (
-                  <span className="text-rose-600 font-semibold font-mono">
-                    {diff < 0 ? `ขาด ${formatNumber(Math.abs(diff))} บ.` : `เกิน ${formatNumber(diff)} บ.`}
-                  </span>
-                )}
-              </p>
-              <p className="mt-1">
-                <strong>บันทึกกำกับหมายเหตุ:</strong> {record.cashCheck?.note || '-'}
-              </p>
+                  ) : outLabItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-gray-400">
+                        ไม่มีรายละเอียดส่งแล็บ
+                      </td>
+                    </tr>
+                  ) : (
+                    outLabItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/50">
+                        <td className="py-2 px-3 text-center font-mono font-bold text-amber-700">
+                          {item.labNumber || '-'}
+                        </td>
+                        <td className="py-2 px-3 font-semibold">{item.testName || '-'}</td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-rose-500">
+                          {formatNumber(item.amount)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-bold text-xs text-slate-800 border-t border-gray-150">
+                    <td colSpan={2} className="py-2.5 px-3 text-right">
+                      ยอดรวมค่าส่งแล็บนอกทั้งหมด:
+                    </td>
+                    <td className="py-2.5 px-3 text-right text-amber-800 font-mono">
+                      {formatNumber(totalOutLab)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
+        )}
 
-          <div className="flex flex-col justify-end items-end h-full">
-            <div className="w-56 text-center space-y-6">
-              <div className="border-b border-dashed border-gray-300 h-10 w-full"></div>
-              <div>
-                <p className="font-semibold text-slate-800">ผู้ตรวจสอบและสรุปยอดประจำวัน</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">คลินิก / แล็บวิเคราะห์</p>
+        {/* กรณีผู้ใช้ติ๊กปิดทุกตาราง */}
+        {!showIncomeTable && !showExpenseTable && !showOutLabTable && (
+          <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-gray-300 bg-gray-50/50 space-y-2">
+            <p className="text-sm font-bold text-slate-600">
+              ทุกตารางรายละเอียดถูกซ่อนอยู่ตามที่คุณเลือก
+            </p>
+            <p className="text-xs text-gray-400">
+              สามารถติ๊กเครื่องหมายถูกที่แถบด้านบน เพื่อเลือกแสดงตารางรายรับ, รายจ่าย, หรือ Out-Lab ในรายงานได้ทันที
+            </p>
+            <button
+              type="button"
+              onClick={handleSelectAllTables}
+              className="mt-2 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+            >
+              เลือกแสดงตารางทั้งหมดอีกครั้ง
+            </button>
+          </div>
+        )}
+
+        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print) */}
+        {showCashCheckSummary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600">
+            <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-gray-100">
+              <span className="font-bold text-slate-800 block text-xs">สรุปหมายเหตุการตรวจสอบการเงิน</span>
+              <div className="space-y-1">
+                <p>
+                  <strong>ยอดเงินสดทับจริงที่นับได้:</strong> ฿{formatNumber(countedCash)}
+                </p>
+                <p>
+                  <strong>ยอดลอจิกความคลาดเคลื่อน:</strong>{' '}
+                  {isCorrect ? (
+                    <span className="text-emerald-700 font-semibold">ถูกต้องตามระบบบัญชี</span>
+                  ) : (
+                    <span className="text-rose-600 font-semibold font-mono">
+                      {diff < 0 ? `ขาด ${formatNumber(Math.abs(diff))} บ.` : `เกิน ${formatNumber(diff)} บ.`}
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1">
+                  <strong>บันทึกกำกับหมายเหตุ:</strong> {record.cashCheck?.note || '-'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-end items-end h-full">
+              <div className="w-64 text-center space-y-3">
+                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
+                <p className="text-slate-400 text-xs font-mono select-none">
+                  (........................................................)
+                </p>
+                <div className="space-y-1 group">
+                  <input
+                    type="text"
+                    value={signatureTitle}
+                    onChange={(e) => handleSignatureTitleChange(e.target.value)}
+                    placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น..."
+                    className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <input
+                    type="text"
+                    value={signatureSubtitle}
+                    onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
+                    placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                    className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -24,7 +24,8 @@ import {
   Sparkles,
   ChevronRight,
   Building2,
-  DollarSign
+  DollarSign,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -110,6 +111,79 @@ export default function ProfitModule({
     if (saved) return saved;
     return getLastDayOfMonth(currentDate || getTodayDateString());
   });
+
+  // ตัวเลือกแสดงหรือไม่แสดงตารางแจกแจงรายวันในรายงาน
+  const [showDailyBreakdownTable, setShowDailyBreakdownTable] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bklabplus_profit_show_breakdown_table');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleBreakdownTable = (val: boolean) => {
+    setShowDailyBreakdownTable(val);
+    localStorage.setItem('bklabplus_profit_show_breakdown_table', String(val));
+  };
+
+  // ข้อความใต้ลายเซ็นสำหรับโหมดรายวันเดี่ยว
+  const [profitDaySigTitle, setProfitDaySigTitle] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_day_title') || 'ผู้ตรวจสอบประจำวัน';
+  });
+  const [profitDaySigSub, setProfitDaySigSub] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_day_sub') || 'คลินิก / แล็บวิเคราะห์';
+  });
+
+  const handleProfitDaySigTitleChange = (val: string) => {
+    setProfitDaySigTitle(val);
+    localStorage.setItem('bklabplus_sig_profit_day_title', val);
+  };
+  const handleProfitDaySigSubChange = (val: string) => {
+    setProfitDaySigSub(val);
+    localStorage.setItem('bklabplus_sig_profit_day_sub', val);
+  };
+
+  // ข้อความใต้ลายเซ็นสำหรับโหมดช่วงเวลา/รายเดือนสรุป
+  const [profitRangeSigTitle, setProfitRangeSigTitle] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_range_title') || 'ผู้ตรวจสอบรายเดือนสรุป';
+  });
+  const [profitRangeSigSub, setProfitRangeSigSub] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_range_sub') || 'ฝ่ายบริหาร / บัญชีและการเงิน';
+  });
+
+  const handleProfitRangeSigTitleChange = (val: string) => {
+    setProfitRangeSigTitle(val);
+    localStorage.setItem('bklabplus_sig_profit_range_title', val);
+  };
+  const handleProfitRangeSigSubChange = (val: string) => {
+    setProfitRangeSigSub(val);
+    localStorage.setItem('bklabplus_sig_profit_range_sub', val);
+  };
+
+  // ข้อความใต้ลายเซ็นสำหรับผู้ตรวจสอบ / เจ้าของกิจการ (ช่องที่ 2)
+  const [profitOwnerSigTitle, setProfitOwnerSigTitle] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_owner_title') || 'ผู้ตรวจสอบ / เจ้าของกิจการ';
+  });
+  const [profitOwnerSigSub, setProfitOwnerSigSub] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_profit_owner_sub') || 'ผู้อำนวยการคลินิก';
+  });
+
+  const handleProfitOwnerSigTitleChange = (val: string) => {
+    setProfitOwnerSigTitle(val);
+    localStorage.setItem('bklabplus_sig_profit_owner_title', val);
+  };
+  const handleProfitOwnerSigSubChange = (val: string) => {
+    setProfitOwnerSigSub(val);
+    localStorage.setItem('bklabplus_sig_profit_owner_sub', val);
+  };
+
+  // สถานะเปิด/ปิดแสดงผลส่วนลงนามในรายงาน
+  const [showProfitSignature, setShowProfitSignature] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bklabplus_profit_show_signature');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleProfitSignature = (val: boolean) => {
+    setShowProfitSignature(val);
+    localStorage.setItem('bklabplus_profit_show_signature', String(val));
+  };
 
   // สถานะการนับเงินสด
   const [countedCash, setCountedCash] = useState<number>(0);
@@ -635,6 +709,27 @@ export default function ProfitModule({
                 เมื่อวาน
               </button>
             </div>
+
+            {/* แถบเปิด/ปิดแสดงผลส่วนลงนามในรายงาน (โหมดรายวัน) */}
+            <div className="w-full pt-2.5 border-t border-gray-150 flex items-center justify-between gap-2 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showProfitSignature}
+                  onChange={(e) => handleToggleProfitSignature(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600 w-4 h-4"
+                />
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <CheckCircle size={14} className="text-emerald-600" />
+                  <span>แสดงส่วนลงนาม & หมายเหตุในรายงาน</span>
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                  showProfitSignature ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {showProfitSignature ? 'เปิดแสดง' : 'ซ่อน'}
+                </span>
+              </label>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -719,6 +814,47 @@ export default function ProfitModule({
                 <span>
                   ช่วงเวลา {rangeData.startDate} ถึง {rangeData.endDate} (มีบันทึกข้อมูล {rangeData.daysWithRecords} วัน)
                 </span>
+              </div>
+            </div>
+
+            {/* แถบเปิด/ปิดแสดงผลตารางและส่วนลงนามในรายงาน */}
+            <div className="pt-2.5 border-t border-gray-150 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showDailyBreakdownTable}
+                    onChange={(e) => handleToggleBreakdownTable(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600 w-4 h-4"
+                  />
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Layers size={14} className="text-emerald-600" />
+                    <span>แสดงตารางแจกแจงรายวันในรายงาน</span>
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    showDailyBreakdownTable ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {showDailyBreakdownTable ? 'เปิดแสดง' : 'ซ่อน'}
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showProfitSignature}
+                    onChange={(e) => handleToggleProfitSignature(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600 w-4 h-4"
+                  />
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <CheckCircle size={14} className="text-emerald-600" />
+                    <span>แสดงส่วนลงนาม & หมายเหตุ</span>
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    showProfitSignature ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {showProfitSignature ? 'เปิดแสดง' : 'ซ่อน'}
+                  </span>
+                </label>
               </div>
             </div>
           </div>
@@ -1036,7 +1172,7 @@ export default function ProfitModule({
         </div>
 
         {/* กรณีดูเป็นช่วงวันที่ (Date Range / Month): ตารางแจกแจงรายวัน (Daily Breakdown Table) */}
-        {viewMode === 'range' && (
+        {viewMode === 'range' && showDailyBreakdownTable && (
           <div className="mt-8 pt-6 border-t-2 border-slate-100 space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div>
@@ -1049,9 +1185,20 @@ export default function ProfitModule({
                 </p>
               </div>
 
-              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-xl">
-                รวม {rangeData.matchedDates.length} วัน (มีรายการ {rangeData.daysWithRecords} วัน)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-xl">
+                  รวม {rangeData.matchedDates.length} วัน (มีรายการ {rangeData.daysWithRecords} วัน)
+                </span>
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50 border border-slate-200 px-2.5 py-1 rounded-xl cursor-pointer print:hidden select-none transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showDailyBreakdownTable}
+                    onChange={(e) => handleToggleBreakdownTable(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                  />
+                  <span className="font-semibold text-[11px]">แสดงในรายงาน</span>
+                </label>
+              </div>
             </div>
 
             {rangeData.dailyBreakdown.length === 0 ? (
@@ -1185,21 +1332,101 @@ export default function ProfitModule({
           </div>
         )}
 
-        {/* ส่วนลงนาม สำหรับหน้าพิมพ์รายงาน (Print Only) */}
-        <div className="hidden print:grid grid-cols-2 gap-12 pt-12 mt-8 border-t border-slate-300 text-center text-xs">
-          <div className="space-y-8">
-            <p className="font-semibold text-slate-700">ผู้ตรวจนับเงินสด</p>
-            <div className="border-b border-dotted border-slate-400 w-48 mx-auto"></div>
-            <p className="text-slate-500">(........................................................)</p>
-            <p className="text-[10px] text-slate-400">วันที่: ......./......./...........</p>
+        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำหรับแสดงผลบนจอ และสั่ง Print / Export PDF) */}
+        {showProfitSignature && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 mt-8 border-t border-slate-200 text-xs">
+            {/* ฝั่งซ้าย: ผู้ตรวจนับเงินสด / ผู้ตรวจสอบประจำวัน / รายเดือนสรุป */}
+            <div className="flex flex-col items-center justify-end text-center">
+              <div className="w-64 space-y-3">
+                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
+                <p className="text-slate-400 text-xs font-mono select-none">
+                  (........................................................)
+                </p>
+                <div className="space-y-1 group">
+                  {viewMode === 'day' ? (
+                    <>
+                      <input
+                        type="text"
+                        value={profitDaySigTitle}
+                        onChange={(e) => handleProfitDaySigTitleChange(e.target.value)}
+                        placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบประจำวัน..."
+                        className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                        title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                      />
+                      <input
+                        type="text"
+                        value={profitDaySigSub}
+                        onChange={(e) => handleProfitDaySigSubChange(e.target.value)}
+                        placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                        className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                        title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={profitRangeSigTitle}
+                        onChange={(e) => handleProfitRangeSigTitleChange(e.target.value)}
+                        placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบรายเดือนสรุป..."
+                        className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                        title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                      />
+                      <input
+                        type="text"
+                        value={profitRangeSigSub}
+                        onChange={(e) => handleProfitRangeSigSubChange(e.target.value)}
+                        placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                        className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                        title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                      />
+                    </>
+                  )}
+                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-400 pt-1">
+                  วันที่: ......./......./...........
+                </p>
+              </div>
+            </div>
+
+            {/* ฝั่งขวา: ผู้ตรวจสอบ / เจ้าของกิจการ */}
+            <div className="flex flex-col items-center justify-end text-center">
+              <div className="w-64 space-y-3">
+                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
+                <p className="text-slate-400 text-xs font-mono select-none">
+                  (........................................................)
+                </p>
+                <div className="space-y-1 group">
+                  <input
+                    type="text"
+                    value={profitOwnerSigTitle}
+                    onChange={(e) => handleProfitOwnerSigTitleChange(e.target.value)}
+                    placeholder="พิมพ์ตำแหน่ง เช่น ผู้ตรวจสอบ / เจ้าของกิจการ..."
+                    className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <input
+                    type="text"
+                    value={profitOwnerSigSub}
+                    onChange={(e) => handleProfitOwnerSigSubChange(e.target.value)}
+                    placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                    className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-400 pt-1">
+                  วันที่: ......./......./...........
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="space-y-8">
-            <p className="font-semibold text-slate-700">ผู้ตรวจสอบ / เจ้าของกิจการ</p>
-            <div className="border-b border-dotted border-slate-400 w-48 mx-auto"></div>
-            <p className="text-slate-500">(........................................................)</p>
-            <p className="text-[10px] text-slate-400">วันที่: ......./......./...........</p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* กล่องข้อความ Toast แจ้งเตือนเมื่อบันทึกสำเร็จ */}

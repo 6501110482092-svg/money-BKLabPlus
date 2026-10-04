@@ -87,6 +87,9 @@ export default function ExpenseModule({
 
   // ฟังก์ชันตรวจสอบว่า Fix Cost รายการนี้ถึงกำหนดลงบัญชีในวันที่ปัจจุบันหรือไม่
   const isFixCostDueToday = (fc: FixCostItem) => {
+    if (fc.showInReport === false) {
+      return false;
+    }
     if (!fc.dueDay || fc.dueDay === 'last_day') {
       return isLastDay;
     }
@@ -156,7 +159,7 @@ export default function ExpenseModule({
       generalExpenses.map((item) => (item.description || '').trim().toLowerCase())
     );
     const missingFixCosts = currentBizFixCosts.filter(
-      (fc) => !existingNames.has(fc.name.trim().toLowerCase())
+      (fc) => fc.showInReport !== false && !existingNames.has(fc.name.trim().toLowerCase())
     );
 
     if (missingFixCosts.length === 0) {

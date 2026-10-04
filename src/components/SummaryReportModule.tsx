@@ -48,6 +48,7 @@ import {
   Edit3,
   Clock,
   Sparkles,
+  CheckCircle,
 } from 'lucide-react';
 
 interface SummaryReportProps {
@@ -236,6 +237,33 @@ export default function SummaryReportModule({
   const [showIncomeDetails, setShowIncomeDetails] = useState<boolean>(true);
   const [showExpenseDetails, setShowExpenseDetails] = useState<boolean>(true);
   const [showOutLabDetails, setShowOutLabDetails] = useState<boolean>(true);
+
+  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (บันทึกเป็นค่าเริ่มต้นถาวรอัตโนมัติ)
+  const [signatureTitle, setSignatureTitle] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_summary_title') || 'ผู้ตรวจสอบรายเดือนสรุป';
+  });
+  const [signatureSubtitle, setSignatureSubtitle] = useState<string>(() => {
+    return localStorage.getItem('bklabplus_sig_summary_sub') || 'คลินิก / แล็บวิเคราะห์';
+  });
+  const [showSignatureSection, setShowSignatureSection] = useState<boolean>(() => {
+    const saved = localStorage.getItem('bklabplus_sig_summary_show');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleSignatureTitleChange = (val: string) => {
+    setSignatureTitle(val);
+    localStorage.setItem('bklabplus_sig_summary_title', val);
+  };
+
+  const handleSignatureSubtitleChange = (val: string) => {
+    setSignatureSubtitle(val);
+    localStorage.setItem('bklabplus_sig_summary_sub', val);
+  };
+
+  const handleToggleSignatureSection = (val: boolean) => {
+    setShowSignatureSection(val);
+    localStorage.setItem('bklabplus_sig_summary_show', String(val));
+  };
 
   // สลับโหมดมุมมอง: รายการทั้งหมด (Itemized) หรือ จัดกลุ่มตามชื่อรายการ (Grouped)
   const [incomeViewMode, setIncomeViewMode] = useState<'itemized' | 'grouped'>('itemized');
@@ -744,6 +772,7 @@ export default function SummaryReportModule({
     setShowIncomeDetails(true);
     setShowExpenseDetails(true);
     setShowOutLabDetails(true);
+    setShowSignatureSection(true);
   };
 
   return (
@@ -929,6 +958,24 @@ export default function SummaryReportModule({
                   : 'bg-gray-200 text-gray-600'
               }`}>
                 {sortedOutLabList.length} ชนิด / {totalOutLabCount} ครั้ง
+              </span>
+            </label>
+
+            {/* Checkbox: สรุปภาพรวมและลายเซ็นท้ายรายงาน */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showSignatureSection
+                ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showSignatureSection}
+                onChange={(e) => handleToggleSignatureSection(e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                <CheckCircle size={13} className={showSignatureSection ? 'text-blue-600' : 'text-gray-400'} />
+                <span>สรุปหมายเหตุ & ลายเซ็น</span>
               </span>
             </label>
           </div>
@@ -1182,6 +1229,16 @@ export default function SummaryReportModule({
                     สรุปตามชื่อรายการ ({groupedIncomeList.length})
                   </button>
                 </div>
+
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-emerald-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-emerald-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showIncomeDetails}
+                    onChange={(e) => setShowIncomeDetails(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                  />
+                  <span className="text-[11px] font-semibold">แสดงในรายงาน</span>
+                </label>
               </div>
             </div>
 
@@ -1366,6 +1423,16 @@ export default function SummaryReportModule({
                     สรุปตามชื่อรายการ ({groupedExpenseList.length})
                   </button>
                 </div>
+
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-rose-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-rose-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showExpenseDetails}
+                    onChange={(e) => setShowExpenseDetails(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer accent-rose-600"
+                  />
+                  <span className="text-[11px] font-semibold">แสดงในรายงาน</span>
+                </label>
               </div>
             </div>
 
@@ -1558,6 +1625,16 @@ export default function SummaryReportModule({
                     รายวัน LN ({allOutLabItems.length})
                   </button>
                 </div>
+
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-amber-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showOutLabDetails}
+                    onChange={(e) => setShowOutLabDetails(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                  />
+                  <span className="text-[11px] font-semibold">แสดงในรายงาน</span>
+                </label>
               </div>
             </div>
 
@@ -1689,6 +1766,70 @@ export default function SummaryReportModule({
             >
               แสดงตารางทั้งหมดอีกครั้ง
             </button>
+          </div>
+        )}
+
+        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print & ตรวจสอบ) */}
+        {showSignatureSection && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600">
+            {/* สรุปข้อมูลภาพรวมของช่วงเวลา */}
+            <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-gray-150">
+              <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80">
+                <span className="font-extrabold text-slate-800 text-xs">
+                  สรุปผลการเงินช่วงเวลา ({customReportTitle})
+                </span>
+                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded-md border border-gray-200 font-semibold">
+                  {datesInRange.length} วันที่มีการลงบัญชี
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">ยอดรายรับสะสมรวม:</span>
+                  <span className="font-mono font-bold text-emerald-700">฿{formatNumber(totalRangeIncome)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">ยอดรายจ่ายรวม (ทั่วไป + Out-Lab):</span>
+                  <span className="font-mono font-bold text-rose-600">฿{formatNumber(totalRangeExpense)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200">
+                  <span className="font-extrabold text-slate-800">ผลกำไรสุทธิรวม (Net Profit):</span>
+                  <span className={`font-mono font-black text-sm ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    ฿{formatNumber(netProfit)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ส่วนลายเซ็นและชื่อตำแหน่งใต้ลายเซ็น (พิมพ์เองและจำค่าเริ่มต้นอัตโนมัติ) */}
+            <div className="flex flex-col justify-end items-end h-full">
+              <div className="w-64 text-center space-y-3">
+                <div className="border-b border-dashed border-gray-400 h-10 w-full"></div>
+                <p className="text-slate-400 text-xs font-mono select-none">
+                  (........................................................)
+                </p>
+                <div className="space-y-1 group">
+                  <input
+                    type="text"
+                    value={signatureTitle}
+                    onChange={(e) => handleSignatureTitleChange(e.target.value)}
+                    placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบรายเดือนสรุป..."
+                    className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <input
+                    type="text"
+                    value={signatureSubtitle}
+                    onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
+                    placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                    className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                    title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                  />
+                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
