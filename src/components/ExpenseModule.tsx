@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ExpenseModuleProps {
+  key?: React.Key;
   currentDate: string;
   onDateChange: (date: string) => void;
   record: DailyRecord;

@@ -24,9 +24,11 @@ import {
 } from 'lucide-react';
 
 interface DailyReportModuleProps {
+  key?: React.Key;
   currentDate: string;
   onDateChange: (date: string) => void;
   record: DailyRecord;
+  activeBusinessId?: string;
   businessName?: string;
   businessCode?: string;
   businessLogoUrl?: string;
@@ -44,51 +46,64 @@ export default function DailyReportModule({
   currentDate,
   onDateChange,
   record,
+  activeBusinessId,
   businessName = 'คลินิกเวชกรรม / แผนกแพทย์',
   businessCode = 'CLN',
   businessLogoUrl,
 }: DailyReportModuleProps) {
+  const bizSuffix = activeBusinessId ? `_${activeBusinessId}` : '';
+
   const [customDailyTitle, setCustomDailyTitle] = React.useState<string>(() => {
-    return localStorage.getItem('bklabplus_daily_custom_title') || '';
+    return localStorage.getItem(`bklabplus_daily_custom_title${bizSuffix}`) || '';
   });
 
   const handleCustomDailyTitleChange = (val: string) => {
     setCustomDailyTitle(val);
-    localStorage.setItem('bklabplus_daily_custom_title', val);
+    localStorage.setItem(`bklabplus_daily_custom_title${bizSuffix}`, val);
   };
 
-  // ข้อความใต้ลายเซ็นประจำวัน (บันทึกเป็นค่าเริ่มต้นอัตโนมัติ)
+  // ข้อความใต้ลายเซ็นประจำวัน (บันทึกเป็นค่าเริ่มต้นอัตโนมัติแยกตามธุรกิจ)
   const [signatureTitle, setSignatureTitle] = React.useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_daily_title') || 'ผู้ตรวจสอบประจำวัน';
+    return localStorage.getItem(`bklabplus_sig_daily_title${bizSuffix}`) || 'ผู้ตรวจสอบประจำวัน';
   });
   const [signatureSubtitle, setSignatureSubtitle] = React.useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_daily_sub') || 'คลินิก / แล็บวิเคราะห์';
+    return localStorage.getItem(`bklabplus_sig_daily_sub${bizSuffix}`) || businessName || 'คลินิก / แล็บวิเคราะห์';
   });
   const [signatureSignerName, setSignatureSignerName] = React.useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_daily_name') || '';
+    return localStorage.getItem(`bklabplus_sig_daily_name${bizSuffix}`) || '';
   });
   const [signatureDate, setSignatureDate] = React.useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_daily_date') || '';
+    return localStorage.getItem(`bklabplus_sig_daily_date${bizSuffix}`) || '';
   });
+
+  // ซิงค์ข้อความลายเซ็นและชื่อเมื่อเปลี่ยนธุรกิจ
+  React.useEffect(() => {
+    const sfx = activeBusinessId ? `_${activeBusinessId}` : '';
+    setCustomDailyTitle(localStorage.getItem(`bklabplus_daily_custom_title${sfx}`) || '');
+    setSignatureTitle(localStorage.getItem(`bklabplus_sig_daily_title${sfx}`) || 'ผู้ตรวจสอบประจำวัน');
+    setSignatureSubtitle(localStorage.getItem(`bklabplus_sig_daily_sub${sfx}`) || businessName || 'คลินิก / แล็บวิเคราะห์');
+    setSignatureSignerName(localStorage.getItem(`bklabplus_sig_daily_name${sfx}`) || '');
+    setSignatureDate(localStorage.getItem(`bklabplus_sig_daily_date${sfx}`) || '');
+  }, [activeBusinessId, businessName]);
 
   const handleSignatureTitleChange = (val: string) => {
     setSignatureTitle(val);
-    localStorage.setItem('bklabplus_sig_daily_title', val);
+    localStorage.setItem(`bklabplus_sig_daily_title${bizSuffix}`, val);
   };
 
   const handleSignatureSubtitleChange = (val: string) => {
     setSignatureSubtitle(val);
-    localStorage.setItem('bklabplus_sig_daily_sub', val);
+    localStorage.setItem(`bklabplus_sig_daily_sub${bizSuffix}`, val);
   };
 
   const handleSignatureSignerNameChange = (val: string) => {
     setSignatureSignerName(val);
-    localStorage.setItem('bklabplus_sig_daily_name', val);
+    localStorage.setItem(`bklabplus_sig_daily_name${bizSuffix}`, val);
   };
 
   const handleSignatureDateChange = (val: string) => {
     setSignatureDate(val);
-    localStorage.setItem('bklabplus_sig_daily_date', val);
+    localStorage.setItem(`bklabplus_sig_daily_date${bizSuffix}`, val);
   };
 
   // สถานะเปิด/ปิดแสดงผลแต่ละตารางในรายงาน

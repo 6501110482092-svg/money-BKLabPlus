@@ -694,15 +694,18 @@ export default function App() {
         <div className="min-h-[500px]" id="tab-content-portal">
           {activeTab === 'income' && (
             <IncomeModule
+              key={`${activeBusinessId}-${currentDate}`}
               currentDate={currentDate}
               onDateChange={handleDateChange}
               record={currentRecord}
               onSaveRecord={handleSaveRecord}
+              activeBusinessId={activeBusinessId}
             />
           )}
 
           {activeTab === 'expense' && (
             <ExpenseModule
+              key={`${activeBusinessId}-${currentDate}`}
               currentDate={currentDate}
               onDateChange={handleDateChange}
               record={currentRecord}
@@ -715,6 +718,7 @@ export default function App() {
 
           {activeTab === 'profit' && (
             <ProfitModule
+              key={`${activeBusinessId}-${currentDate}`}
               currentDate={currentDate}
               onDateChange={handleDateChange}
               record={currentRecord}
@@ -729,9 +733,11 @@ export default function App() {
 
           {activeTab === 'daily' && (
             <DailyReportModule
+              key={`${activeBusinessId}-${currentDate}`}
               currentDate={currentDate}
               onDateChange={handleDateChange}
               record={currentRecord}
+              activeBusinessId={activeBusinessId}
               businessName={activeBusiness.name}
               businessCode={activeBusiness.code}
               businessLogoUrl={activeBusiness.logoUrl}
@@ -740,6 +746,7 @@ export default function App() {
 
           {activeTab === 'summary' && (
             <SummaryReportModule
+              key={activeBusinessId}
               currentDate={currentDate}
               activeBusinessId={activeBusinessId}
               businesses={businesses}
@@ -748,6 +755,7 @@ export default function App() {
 
           {activeTab === 'settings' && (
             <ManageTestsModule
+              key={activeBusinessId}
               businesses={businesses}
               activeBusinessId={activeBusinessId}
               onSelectBusiness={handleSelectBusiness}

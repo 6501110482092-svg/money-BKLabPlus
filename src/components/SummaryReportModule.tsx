@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 
 interface SummaryReportProps {
+  key?: React.Key;
   currentDate: string;
   activeBusinessId?: string;
   businesses?: Business[];
@@ -154,16 +155,18 @@ export default function SummaryReportModule({
     if (val) localStorage.setItem('bklabplus_summary_end_date', val);
   };
 
-  // หัวข้อเอกสาร / ประจำเดือน กำหนดเองได้
+  const bizSuffix = activeBusinessId && activeBusinessId !== 'all' ? `_${activeBusinessId}` : '';
+
+  // หัวข้อเอกสาร / ประจำเดือน กำหนดเองได้ แยกตามธุรกิจ
   const [customReportTitle, setCustomReportTitle] = useState<string>(() => {
-    const saved = localStorage.getItem('bklabplus_summary_custom_title');
+    const saved = localStorage.getItem(`bklabplus_summary_custom_title${bizSuffix}`);
     if (saved !== null) return saved;
     return 'ประจำเดือน กันยายน 2569';
   });
 
   const handleCustomTitleChange = (val: string) => {
     setCustomReportTitle(val);
-    localStorage.setItem('bklabplus_summary_custom_title', val);
+    localStorage.setItem(`bklabplus_summary_custom_title${bizSuffix}`, val);
   };
 
   // แนะนำชื่อเดือนตาม startDate อัตโนมัติ
@@ -246,47 +249,60 @@ export default function SummaryReportModule({
   const [showExpenseDetails, setShowExpenseDetails] = useState<boolean>(true);
   const [showOutLabDetails, setShowOutLabDetails] = useState<boolean>(true);
 
-  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (บันทึกเป็นค่าเริ่มต้นถาวรอัตโนมัติ)
+  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (บันทึกเป็นค่าเริ่มต้นถาวรอัตโนมัติแยกตามธุรกิจ)
   const [signatureTitle, setSignatureTitle] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_summary_title') || 'ผู้ตรวจสอบรายเดือนสรุป';
+    return localStorage.getItem(`bklabplus_sig_summary_title${bizSuffix}`) || 'ผู้ตรวจสอบรายเดือนสรุป';
   });
   const [signatureSubtitle, setSignatureSubtitle] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_summary_sub') || 'คลินิก / แล็บวิเคราะห์';
+    return localStorage.getItem(`bklabplus_sig_summary_sub${bizSuffix}`) || 'คลินิก / แล็บวิเคราะห์';
   });
   const [signatureSignerName, setSignatureSignerName] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_summary_name') || '';
+    return localStorage.getItem(`bklabplus_sig_summary_name${bizSuffix}`) || '';
   });
   const [signatureDate, setSignatureDate] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_summary_date') || '';
+    return localStorage.getItem(`bklabplus_sig_summary_date${bizSuffix}`) || '';
   });
   const [showSignatureSection, setShowSignatureSection] = useState<boolean>(() => {
-    const saved = localStorage.getItem('bklabplus_sig_summary_show');
+    const saved = localStorage.getItem(`bklabplus_sig_summary_show${bizSuffix}`);
     return saved !== null ? saved === 'true' : true;
   });
 
+  // ซิงค์ข้อความลายเซ็นและชื่อเมื่อเปลี่ยนธุรกิจ
+  useEffect(() => {
+    const sfx = activeBusinessId && activeBusinessId !== 'all' ? `_${activeBusinessId}` : '';
+    setCustomReportTitle(localStorage.getItem(`bklabplus_summary_custom_title${sfx}`) || 'ประจำเดือน กันยายน 2569');
+    setSignatureTitle(localStorage.getItem(`bklabplus_sig_summary_title${sfx}`) || 'ผู้ตรวจสอบรายเดือนสรุป');
+    setSignatureSubtitle(localStorage.getItem(`bklabplus_sig_summary_sub${sfx}`) || 'คลินิก / แล็บวิเคราะห์');
+    setSignatureSignerName(localStorage.getItem(`bklabplus_sig_summary_name${sfx}`) || '');
+    setSignatureDate(localStorage.getItem(`bklabplus_sig_summary_date${sfx}`) || '');
+    if (activeBusinessId) {
+      setSelectedBiz(activeBusinessId);
+    }
+  }, [activeBusinessId]);
+
   const handleSignatureTitleChange = (val: string) => {
     setSignatureTitle(val);
-    localStorage.setItem('bklabplus_sig_summary_title', val);
+    localStorage.setItem(`bklabplus_sig_summary_title${bizSuffix}`, val);
   };
 
   const handleSignatureSubtitleChange = (val: string) => {
     setSignatureSubtitle(val);
-    localStorage.setItem('bklabplus_sig_summary_sub', val);
+    localStorage.setItem(`bklabplus_sig_summary_sub${bizSuffix}`, val);
   };
 
   const handleSignatureSignerNameChange = (val: string) => {
     setSignatureSignerName(val);
-    localStorage.setItem('bklabplus_sig_summary_name', val);
+    localStorage.setItem(`bklabplus_sig_summary_name${bizSuffix}`, val);
   };
 
   const handleSignatureDateChange = (val: string) => {
     setSignatureDate(val);
-    localStorage.setItem('bklabplus_sig_summary_date', val);
+    localStorage.setItem(`bklabplus_sig_summary_date${bizSuffix}`, val);
   };
 
   const handleToggleSignatureSection = (val: boolean) => {
     setShowSignatureSection(val);
-    localStorage.setItem('bklabplus_sig_summary_show', String(val));
+    localStorage.setItem(`bklabplus_sig_summary_show${bizSuffix}`, String(val));
   };
 
   // สลับโหมดมุมมอง: รายการทั้งหมด (Itemized) หรือ จัดกลุ่มตามชื่อรายการ (Grouped)

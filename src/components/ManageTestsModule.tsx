@@ -53,6 +53,7 @@ import {
 import { motion } from 'motion/react';
 
 interface ManageTestsModuleProps {
+  key?: React.Key;
   businesses?: Business[];
   activeBusinessId?: string;
   onSelectBusiness?: (id: string) => void;
@@ -110,7 +111,6 @@ export default function ManageTestsModule({
   const [passcodeShake, setPasscodeShake] = useState<boolean>(false);
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [backupInfo, setBackupInfo] = useState<{ totalDays: number; totalBusinesses: number; totalLabTests: number; sizeBytes: number } | null>(null);
-
   const handleUnlockBackup = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (passcodeInput.trim() === '140763') {
@@ -1445,7 +1445,7 @@ export default function ManageTestsModule({
         </div>
       ) : (
         /* เมื่อปลดล็อกแล้ว: ขยายแสดงศูนย์สำรองข้อมูลเต็มรูปแบบทันทีบนหน้านี้ */
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden space-y-0">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden space-y-0" id="data-backup-center">
           <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">

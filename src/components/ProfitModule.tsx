@@ -30,6 +30,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ProfitModuleProps {
+  key?: React.Key;
   currentDate: string;
   onDateChange: (date: string) => void;
   record: DailyRecord;
@@ -131,100 +132,117 @@ export default function ProfitModule({
     localStorage.setItem('bklabplus_profit_show_breakdown_table', String(val));
   };
 
-  // ข้อความใต้ลายเซ็นสำหรับโหมดรายวันเดี่ยว
+  const bizSuffix = activeBusinessId ? `_${activeBusinessId}` : '';
+
+  // ข้อความใต้ลายเซ็นสำหรับโหมดรายวันเดี่ยว (แยกตามธุรกิจ)
   const [profitDaySigTitle, setProfitDaySigTitle] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_day_title') || 'ผู้ตรวจสอบประจำวัน';
+    return localStorage.getItem(`bklabplus_sig_profit_day_title${bizSuffix}`) || 'ผู้ตรวจสอบประจำวัน';
   });
   const [profitDaySigSub, setProfitDaySigSub] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_day_sub') || 'คลินิก / แล็บวิเคราะห์';
+    return localStorage.getItem(`bklabplus_sig_profit_day_sub${bizSuffix}`) || businessName || 'คลินิก / แล็บวิเคราะห์';
   });
 
   const handleProfitDaySigTitleChange = (val: string) => {
     setProfitDaySigTitle(val);
-    localStorage.setItem('bklabplus_sig_profit_day_title', val);
+    localStorage.setItem(`bklabplus_sig_profit_day_title${bizSuffix}`, val);
   };
   const handleProfitDaySigSubChange = (val: string) => {
     setProfitDaySigSub(val);
-    localStorage.setItem('bklabplus_sig_profit_day_sub', val);
+    localStorage.setItem(`bklabplus_sig_profit_day_sub${bizSuffix}`, val);
   };
 
-  // ข้อความใต้ลายเซ็นสำหรับโหมดช่วงเวลา/รายเดือนสรุป
+  // ข้อความใต้ลายเซ็นสำหรับโหมดช่วงเวลา/รายเดือนสรุป (แยกตามธุรกิจ)
   const [profitRangeSigTitle, setProfitRangeSigTitle] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_range_title') || 'ผู้ตรวจสอบรายเดือนสรุป';
+    return localStorage.getItem(`bklabplus_sig_profit_range_title${bizSuffix}`) || 'ผู้ตรวจสอบรายเดือนสรุป';
   });
   const [profitRangeSigSub, setProfitRangeSigSub] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_range_sub') || 'ฝ่ายบริหาร / บัญชีและการเงิน';
+    return localStorage.getItem(`bklabplus_sig_profit_range_sub${bizSuffix}`) || 'ฝ่ายบริหาร / บัญชีและการเงิน';
   });
 
   const handleProfitRangeSigTitleChange = (val: string) => {
     setProfitRangeSigTitle(val);
-    localStorage.setItem('bklabplus_sig_profit_range_title', val);
+    localStorage.setItem(`bklabplus_sig_profit_range_title${bizSuffix}`, val);
   };
   const handleProfitRangeSigSubChange = (val: string) => {
     setProfitRangeSigSub(val);
-    localStorage.setItem('bklabplus_sig_profit_range_sub', val);
+    localStorage.setItem(`bklabplus_sig_profit_range_sub${bizSuffix}`, val);
   };
 
   // ข้อความใต้ลายเซ็นสำหรับผู้ตรวจสอบ / เจ้าของกิจการ (ช่องที่ 2)
   const [profitOwnerSigTitle, setProfitOwnerSigTitle] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_owner_title') || 'ผู้ตรวจสอบ / เจ้าของกิจการ';
+    return localStorage.getItem(`bklabplus_sig_profit_owner_title${bizSuffix}`) || 'ผู้ตรวจสอบ / เจ้าของกิจการ';
   });
   const [profitOwnerSigSub, setProfitOwnerSigSub] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_owner_sub') || 'ผู้อำนวยการคลินิก';
+    return localStorage.getItem(`bklabplus_sig_profit_owner_sub${bizSuffix}`) || 'ผู้อำนวยการคลินิก';
   });
 
   const handleProfitOwnerSigTitleChange = (val: string) => {
     setProfitOwnerSigTitle(val);
-    localStorage.setItem('bklabplus_sig_profit_owner_title', val);
+    localStorage.setItem(`bklabplus_sig_profit_owner_title${bizSuffix}`, val);
   };
   const handleProfitOwnerSigSubChange = (val: string) => {
     setProfitOwnerSigSub(val);
-    localStorage.setItem('bklabplus_sig_profit_owner_sub', val);
+    localStorage.setItem(`bklabplus_sig_profit_owner_sub${bizSuffix}`, val);
   };
 
   // ชื่อในวงเล็บและวันที่สำหรับผู้ลงนามช่องที่ 1
   const [profitSig1Name, setProfitSig1Name] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_name1') || '';
+    return localStorage.getItem(`bklabplus_sig_profit_name1${bizSuffix}`) || '';
   });
   const [profitSig1Date, setProfitSig1Date] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_date1') || '';
+    return localStorage.getItem(`bklabplus_sig_profit_date1${bizSuffix}`) || '';
   });
 
   const handleProfitSig1NameChange = (val: string) => {
     setProfitSig1Name(val);
-    localStorage.setItem('bklabplus_sig_profit_name1', val);
+    localStorage.setItem(`bklabplus_sig_profit_name1${bizSuffix}`, val);
   };
   const handleProfitSig1DateChange = (val: string) => {
     setProfitSig1Date(val);
-    localStorage.setItem('bklabplus_sig_profit_date1', val);
+    localStorage.setItem(`bklabplus_sig_profit_date1${bizSuffix}`, val);
   };
 
   // ชื่อในวงเล็บและวันที่สำหรับผู้ลงนามช่องที่ 2
   const [profitSig2Name, setProfitSig2Name] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_name2') || '';
+    return localStorage.getItem(`bklabplus_sig_profit_name2${bizSuffix}`) || '';
   });
   const [profitSig2Date, setProfitSig2Date] = useState<string>(() => {
-    return localStorage.getItem('bklabplus_sig_profit_date2') || '';
+    return localStorage.getItem(`bklabplus_sig_profit_date2${bizSuffix}`) || '';
   });
 
   const handleProfitSig2NameChange = (val: string) => {
     setProfitSig2Name(val);
-    localStorage.setItem('bklabplus_sig_profit_name2', val);
+    localStorage.setItem(`bklabplus_sig_profit_name2${bizSuffix}`, val);
   };
   const handleProfitSig2DateChange = (val: string) => {
     setProfitSig2Date(val);
-    localStorage.setItem('bklabplus_sig_profit_date2', val);
+    localStorage.setItem(`bklabplus_sig_profit_date2${bizSuffix}`, val);
   };
+
+  // ซิงค์ลายเซ็นเมื่อเปลี่ยนธุรกิจ
+  useEffect(() => {
+    const sfx = activeBusinessId ? `_${activeBusinessId}` : '';
+    setProfitDaySigTitle(localStorage.getItem(`bklabplus_sig_profit_day_title${sfx}`) || 'ผู้ตรวจสอบประจำวัน');
+    setProfitDaySigSub(localStorage.getItem(`bklabplus_sig_profit_day_sub${sfx}`) || businessName || 'คลินิก / แล็บวิเคราะห์');
+    setProfitRangeSigTitle(localStorage.getItem(`bklabplus_sig_profit_range_title${sfx}`) || 'ผู้ตรวจสอบรายเดือนสรุป');
+    setProfitRangeSigSub(localStorage.getItem(`bklabplus_sig_profit_range_sub${sfx}`) || 'ฝ่ายบริหาร / บัญชีและการเงิน');
+    setProfitOwnerSigTitle(localStorage.getItem(`bklabplus_sig_profit_owner_title${sfx}`) || 'ผู้ตรวจสอบ / เจ้าของกิจการ');
+    setProfitOwnerSigSub(localStorage.getItem(`bklabplus_sig_profit_owner_sub${sfx}`) || 'ผู้อำนวยการคลินิก');
+    setProfitSig1Name(localStorage.getItem(`bklabplus_sig_profit_name1${sfx}`) || '');
+    setProfitSig1Date(localStorage.getItem(`bklabplus_sig_profit_date1${sfx}`) || '');
+    setProfitSig2Name(localStorage.getItem(`bklabplus_sig_profit_name2${sfx}`) || '');
+    setProfitSig2Date(localStorage.getItem(`bklabplus_sig_profit_date2${sfx}`) || '');
+  }, [activeBusinessId, businessName]);
 
   // สถานะเปิด/ปิดแสดงผลส่วนลงนามในรายงาน
   const [showProfitSignature, setShowProfitSignature] = useState<boolean>(() => {
-    const saved = localStorage.getItem('bklabplus_profit_show_signature');
+    const saved = localStorage.getItem(`bklabplus_profit_show_signature${bizSuffix}`);
     return saved !== null ? saved === 'true' : true;
   });
 
   const handleToggleProfitSignature = (val: boolean) => {
     setShowProfitSignature(val);
-    localStorage.setItem('bklabplus_profit_show_signature', String(val));
+    localStorage.setItem(`bklabplus_profit_show_signature${bizSuffix}`, String(val));
   };
 
   // สถานะการนับเงินสด
@@ -530,6 +548,7 @@ export default function ProfitModule({
         c: record?.cashCheck?.countedCash || 0,
         n: record?.cashCheck?.note || '',
         d: currentDate,
+        b: activeBusinessId,
       });
       if (serialized !== prevRecordRef.current) {
         setCountedCash(record?.cashCheck?.countedCash || 0);

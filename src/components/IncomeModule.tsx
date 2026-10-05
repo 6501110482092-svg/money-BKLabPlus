@@ -10,10 +10,12 @@ import { Plus, Trash2, Save, Calendar, CheckCircle, Hash, Sparkles, X, Settings2
 import { motion, AnimatePresence } from 'motion/react';
 
 interface IncomeModuleProps {
+  key?: React.Key;
   currentDate: string;
   onDateChange: (date: string) => void;
   record: DailyRecord;
   onSaveRecord: (record: DailyRecord) => void;
+  activeBusinessId?: string;
 }
 
 export default function IncomeModule({
@@ -21,6 +23,7 @@ export default function IncomeModule({
   onDateChange,
   record,
   onSaveRecord,
+  activeBusinessId,
 }: IncomeModuleProps) {
   const [cashItems, setCashItems] = useState<IncomeItem[]>([]);
   const [transferItems, setTransferItems] = useState<IncomeItem[]>([]);
@@ -83,7 +86,7 @@ export default function IncomeModule({
       setTransferItems(transfer);
       prevRecordRef.current = serializedRecord;
     }
-  }, [record, currentDate]);
+  }, [record, currentDate, activeBusinessId]);
 
   // ระบบ Auto-Save บันทึกข้อมูลเรียลไทม์เบื้องหลังเมื่อหยุดพิมพ์ 1.2 วินาที
   const recordRef = useRef(record);
