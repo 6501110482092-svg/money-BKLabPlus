@@ -13,6 +13,7 @@ import {
   saveActiveBusinessId,
   exportAllDataBackup,
   restoreDataBackup,
+  loadAllRecordsByBusiness,
 } from '../utils/storage';
 import { subscribeToLabTests, subscribeToBusinesses } from '../utils/firebase';
 import { getBusinessColorClasses, formatNumber, compressImageFile, getTodayDateString } from '../constants';
@@ -44,6 +45,10 @@ import {
   Activity,
   CheckCircle,
   Lock,
+  Unlock,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -52,7 +57,6 @@ interface ManageTestsModuleProps {
   activeBusinessId?: string;
   onSelectBusiness?: (id: string) => void;
   onBusinessesChange?: (businesses: Business[]) => void;
-  onNavigateToBackup?: () => void;
 }
 
 export default function ManageTestsModule({
@@ -60,7 +64,6 @@ export default function ManageTestsModule({
   activeBusinessId: propActiveBusinessId,
   onSelectBusiness,
   onBusinessesChange,
-  onNavigateToBackup,
 }: ManageTestsModuleProps) {
   // รัฐชุดตรวจแล็บ
   const [tests, setTests] = useState<LabTestTemplate[]>([]);
@@ -96,9 +99,110 @@ export default function ManageTestsModule({
   const [editFcType, setEditFcType] = useState<'cash' | 'transfer'>('cash');
   const [editFcDueDay, setEditFcDueDay] = useState<number | 'last_day'>('last_day');
 
-  // รัฐระบบสำรองข้อมูลระยะยาว 20-50 ปี
+  // รัฐระบบสำรองข้อมูลระยะยาว 20-50 ปี พร้อมระบบความปลอดภัยด้วยรหัสผ่าน
+  const [isBackupUnlocked, setIsBackupUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('bklabplus_backup_unlocked') === 'true';
+  });
+  const [showUnlockModal, setShowUnlockModal] = useState<boolean>(false);
+  const [passcodeInput, setPasscodeInput] = useState<string>('');
+  const [passcodeError, setPasscodeError] = useState<string>('');
+  const [showPasscodeText, setShowPasscodeText] = useState<boolean>(false);
+  const [passcodeShake, setPasscodeShake] = useState<boolean>(false);
   const [backupMsg, setBackupMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [backupInfo, setBackupInfo] = useState<{ totalDays: number; totalBusinesses: number; totalLabTests: number; sizeBytes: number } | null>(null);
+
+  const handleUnlockBackup = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (passcodeInput.trim() === '140763') {
+      setIsBackupUnlocked(true);
+      sessionStorage.setItem('bklabplus_backup_unlocked', 'true');
+      setShowUnlockModal(false);
+      setPasscodeInput('');
+      setPasscodeError('');
+    } else {
+      setPasscodeError('รหัสผ่านไม่ถูกต้อง โปรดตรวจสอบรหัสผ่านอีกครั้ง');
+      setPasscodeShake(true);
+      setTimeout(() => setPasscodeShake(false), 500);
+    }
+  };
+
+  const handleLockBackup = () => {
+    setIsBackupUnlocked(false);
+    sessionStorage.removeItem('bklabplus_backup_unlocked');
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const allBiz = loadBusinesses();
+      const allRecordsByBiz = loadAllRecordsByBusiness();
+      
+      const rows: string[] = [];
+      rows.push(['วันที่', 'รหัสธุรกิจ', 'ชื่อธุรกิจ', 'ยอดรับเงินสด', 'ยอดรับโอน', 'รายรับรวม', 'ยอดจ่ายเงินสด', 'ยอดจ่ายโอน', 'ค่าแล็บนอก', 'รายจ่ายรวม', 'กำไรสุทธิ'].join(','));
+
+      allBiz.forEach((biz) => {
+        const records = allRecordsByBiz[biz.id] || {};
+        const dates = Object.keys(records).sort();
+        dates.forEach((d) => {
+          const rec = records[d];
+          if (!rec) return;
+
+          let cashInc = 0;
+          let transInc = 0;
+          (rec.incomeItems || []).forEach((inc) => {
+            if (inc.type === 'cash') cashInc += inc.amount || 0;
+            else transInc += inc.amount || 0;
+          });
+          const totalInc = cashInc + transInc;
+
+          let cashExp = 0;
+          let transExp = 0;
+          let labExp = 0;
+          (rec.expenseItems || []).forEach((exp) => {
+            if (exp.type === 'transfer') transExp += exp.amount || 0;
+            else cashExp += exp.amount || 0;
+          });
+          if (rec.hasOutLab !== false) {
+            (rec.outLabItems || []).forEach((lab) => {
+              labExp += lab.amount || 0;
+            });
+          }
+          const totalExp = cashExp + transExp + labExp;
+          const net = totalInc - totalExp;
+
+          rows.push([
+            `"${d}"`,
+            `"${biz.id}"`,
+            `"${biz.name}"`,
+            cashInc,
+            transInc,
+            totalInc,
+            cashExp,
+            transExp,
+            labExp,
+            totalExp,
+            net
+          ].join(','));
+        });
+      });
+
+      const csvContent = '\uFEFF' + rows.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `BKLabPlus_AuditSummary_${getTodayDateString()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setBackupMsg({
+        type: 'success',
+        text: 'ส่งออกไฟล์สรุปตารางบัญชี (.csv) สำหรับเปิดใน Microsoft Excel สำเร็จเรียบร้อย'
+      });
+    } catch (err: any) {
+      setBackupMsg({ type: 'error', text: 'เกิดข้อผิดพลาดในการส่งออก CSV: ' + err.message });
+    }
+  };
 
   // คำนวณขนาดและสถิติข้อมูลปัจจุบันเมื่อเปิดหน้า
   useEffect(() => {
@@ -1306,35 +1410,352 @@ export default function ManageTestsModule({
         </div>
       </div>
 
-      {/* 4. ทางลัดไปยังศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (ล็อกด้วยรหัสผ่าน 140763) */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-white/10 rounded-xl border border-white/10 text-amber-400">
-            <Database size={24} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm sm:text-base">ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (Data Retention & Backup Center)</h3>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                <Lock size={10} /> โหมดความปลอดภัยสูง
-              </span>
+      {/* 4. ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (Data Retention & Backup Center) */}
+      {!isBackupUnlocked ? (
+        /* เมื่อยังไม่ได้ใส่รหัสผ่าน: แสดงแถบล็อกความปลอดภัย (ไม่แสดงรหัสผ่านในข้อความ) */
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl shadow-sm border border-slate-800 p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-white/10 rounded-xl border border-white/10 text-amber-400">
+              <Database size={24} />
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
-              ระบบได้แยกฟังก์ชันนี้เป็นโหมดเฉพาะบนแท็บหลัก ต้องใส่รหัสผ่าน <strong>140763</strong> เพื่อเข้าใช้งาน
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm sm:text-base">ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี (Data Retention & Backup Center)</h3>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                  <Lock size={10} /> โหมดความปลอดภัยสูง
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                ระบบจัดเก็บและสำรองข้อมูลสำหรับใช้งานระยะยาว 20 ถึง 50+ ปี (จำกัดเฉพาะผู้ดูแลระบบหรือเจ้าของกิจการที่ได้รับอนุญาต)
+              </p>
+            </div>
           </div>
-        </div>
-        {onNavigateToBackup && (
           <button
             type="button"
-            onClick={onNavigateToBackup}
-            className="shrink-0 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              setShowUnlockModal(true);
+              setPasscodeError('');
+              setPasscodeInput('');
+            }}
+            className="shrink-0 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
           >
             <Lock size={15} />
             <span>เข้าสู่โหมดสำรองข้อมูล (ใส่รหัสผ่าน)</span>
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        /* เมื่อปลดล็อกแล้ว: ขยายแสดงศูนย์สำรองข้อมูลเต็มรูปแบบทันทีบนหน้านี้ */
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden space-y-0">
+          <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-white/10 rounded-xl backdrop-blur-xs border border-white/10">
+                  <Database className="text-emerald-400" size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-base sm:text-lg">
+                      ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี
+                    </h3>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono flex items-center gap-1">
+                      <Unlock size={10} /> ปลดล็อกแล้ว
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Data Retention & Backup Center • รองรับการใช้งาน 20 - 50+ ปี ปลอดภัยบน Google Cloud Firestore และไฟล์สำรองในเครื่องคุณ
+                  </p>
+                </div>
+              </div>
+
+              {/* ปุ่มล็อกกลับเพื่อความปลอดภัย */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleLockBackup}
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-rose-600/80 active:scale-95 text-white font-bold text-xs px-3.5 py-2 rounded-xl border border-white/20 transition-all cursor-pointer"
+                  title="ล็อกโหมดนี้ทันที"
+                >
+                  <Lock size={14} />
+                  <span>ล็อกโหมดนี้</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* แจ้งเตือนสถานะการสำรองหรือกู้คืน */}
+          {backupMsg && (
+            <div
+              className={`p-4 border-b flex items-start justify-between gap-3 ${
+                backupMsg.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                {backupMsg.type === 'success' ? (
+                  <CheckCircle className="text-emerald-600 shrink-0" size={16} />
+                ) : (
+                  <X className="text-rose-600 shrink-0" size={16} />
+                )}
+                <span>{backupMsg.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBackupMsg(null)}
+                className="text-xs text-gray-400 hover:text-gray-700 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className="p-6 space-y-6">
+            {/* สถิติข้อมูลปัจจุบัน */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+                <span className="text-[11px] text-slate-500 font-medium block">วันที่บันทึกในระบบ</span>
+                <span className="text-lg font-black text-slate-800 font-mono">
+                  {backupInfo?.totalDays.toLocaleString() || '0'} วัน
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">ทุกบริษัทรวมกัน</span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+                <span className="text-[11px] text-slate-500 font-medium block">ขนาดข้อมูลปัจจุบัน</span>
+                <span className="text-lg font-black text-emerald-700 font-mono">
+                  {backupInfo ? `${(backupInfo.sizeBytes / 1024).toFixed(1)} KB` : '0 KB'}
+                </span>
+                <span className="text-[10px] text-emerald-600 block mt-0.5">ปลอดภัย ไม่กินพื้นที่</span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+                <span className="text-[11px] text-slate-500 font-medium block">ประมาณการ 20 ปี</span>
+                <span className="text-lg font-black text-blue-700 font-mono">~25 MB</span>
+                <span className="text-[10px] text-blue-600 block mt-0.5">7,300 วัน (~0.025 GB)</span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+                <span className="text-[11px] text-slate-500 font-medium block">ประมาณการ 50 ปี</span>
+                <span className="text-lg font-black text-purple-700 font-mono">~65 MB</span>
+                <span className="text-[10px] text-purple-600 block mt-0.5">18,250 วัน (ไม่เกิน 0.1 GB)</span>
+              </div>
+            </div>
+
+            {/* 3 เครื่องมือสำรอง & กู้คืน */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs">
+                    <FileJson size={18} />
+                    <span>1. สำรองข้อมูลระบบทั้งหมด (.json)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    บันทึกข้อมูลทุกบริษัท รายรับ-รายจ่ายย้อนหลังทุกวัน และชุดตรวจแล็บ เก็บไว้ในเครื่องหรือ Google Drive
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExportBackup}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs py-2 px-3 rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>ดาวน์โหลดไฟล์สำรอง (.json)</span>
+                </button>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-blue-700 font-bold text-xs">
+                    <FileSpreadsheet size={18} />
+                    <span>2. ส่งออกตารางบัญชี (.csv / Excel)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    ส่งออกสรุปยอดรายรับ รายจ่าย กำไรสุทธิของทุกวัน สามารถเปิดคำนวณภาษีใน Excel หรือ Google Sheets
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs py-2 px-3 rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>ส่งออกไฟล์บัญชี (.csv)</span>
+                </button>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs">
+                    <Upload size={18} />
+                    <span>3. กู้คืนข้อมูลจากไฟล์สำรอง</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    นำไฟล์สำรอง .json กลับมาอัปเดตลงระบบและซิงค์เข้า Cloud ในกรณีเปลี่ยนคอมพิวเตอร์ใหม่
+                  </p>
+                </div>
+                <label className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs py-2 px-3 rounded-lg transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                  <Upload size={14} />
+                  <span>เลือกไฟล์สำรองเพื่อกู้คืน</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportBackup}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* สรุปคำแนะนำและการประเมินความเร็วสำหรับ 20-50 ปี */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 font-bold text-emerald-800">
+                  <ShieldCheck size={16} />
+                  <span>1. ฐานข้อมูล Google Cloud Enterprise</span>
+                </div>
+                <p className="text-emerald-950/80 leading-relaxed">
+                  ระบบใช้ <strong>Google Cloud Firestore</strong> ซึ่งเป็นฐานข้อมูลระดับโลก รองรับข้อมูลได้มหาศาลระดับล้านๆ รายการ โควต้าฟรีของ Firebase ให้มากถึง <strong>1,000 MB (1 GB)</strong> ดังนั้นการใช้งาน 50 ปีที่ใช้เพียง ~65 MB จะใช้พื้นที่ไม่ถึง 7% ของแพ็กเกจฟรีเลยครับ
+                </p>
+              </div>
+
+              <div className="p-4 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 font-bold text-blue-800">
+                  <Activity size={16} />
+                  <span>2. ทำไมเว็บถึงไม่ค้างแน่นอน</span>
+                </div>
+                <p className="text-blue-950/80 leading-relaxed">
+                  หน้าบันทึกรายรับและรายจ่ายถูกออกแบบมาให้โหลดและประมวลผล <strong>เฉพาะวันนั้นๆ ทีละ 1 วัน</strong> เท่านั้น ไม่ได้โหลด 50 ปีขึ้นมาพร้อมกัน ส่วนหน้ารายงานจะคำนวณตามช่วงวันที่หรือเดือนที่คุณเลือก คอมพิวเตอร์จึงทำงานได้ลื่นไหลเหมือนวันแรกเสมอ
+                </p>
+              </div>
+
+              <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-800">
+                  <HardDrive size={16} />
+                  <span>3. ข้อแนะนำการสำรองข้อมูล</span>
+                </div>
+                <p className="text-amber-950/80 leading-relaxed">
+                  แนะนำให้กดปุ่ม <strong>"สำรองข้อมูลทั้งหมด (.json)"</strong> เก็บไว้ใน Flash Drive, External Hard Drive หรือ Google Drive เป็นประจำ (เช่น ทุกสิ้นปี หรือทุก 6 เดือน) เพื่อให้ข้อมูลธุรกิจของคุณปลอดภัย 100% อยู่ในครอบครองของคุณตลอดไป
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* โมดอลใส่รหัสผ่าน (Passcode Modal) - ไม่มีตัวเลขรหัสผ่านเปิดเผยในหน้าจอ */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className={`bg-white rounded-3xl shadow-2xl max-w-sm w-full border border-slate-200 overflow-hidden ${passcodeShake ? 'animate-bounce' : ''}`}>
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 text-white text-center relative">
+              <button
+                type="button"
+                onClick={() => setShowUnlockModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20">
+                <Lock className="text-amber-400" size={24} />
+              </div>
+              <h3 className="font-extrabold text-base">ยืนยันรหัสผ่านเพื่อเข้าใช้งาน</h3>
+              <p className="text-xs text-slate-300 mt-1">
+                ศูนย์สำรองข้อมูลระยะยาว 20-50 ปี
+              </p>
+            </div>
+            
+            <form onSubmit={handleUnlockBackup} className="p-6 space-y-4">
+              <div className="relative">
+                <input
+                  type={showPasscodeText ? 'text' : 'password'}
+                  maxLength={10}
+                  value={passcodeInput}
+                  onChange={(e) => {
+                    setPasscodeInput(e.target.value);
+                    if (passcodeError) setPasscodeError('');
+                  }}
+                  placeholder="ป้อนรหัสผ่าน..."
+                  autoFocus
+                  className="w-full text-center text-xl font-mono tracking-widest py-2.5 px-4 rounded-xl border-2 border-slate-200 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-bold text-slate-800"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasscodeText(!showPasscodeText)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                  title={showPasscodeText ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                >
+                  {showPasscodeText ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+
+              {passcodeError && (
+                <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-center">
+                  ⚠️ {passcodeError}
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 px-3 rounded-xl transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs py-2.5 px-3 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Unlock size={14} />
+                  <span>ปลดล็อก</span>
+                </button>
+              </div>
+
+              {/* แป้นพิมพ์ตัวเลขด่วนสำหรับมือถือ */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-3 gap-1.5 max-w-[220px] mx-auto">
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        if (passcodeInput.length < 10) setPasscodeInput((p) => p + num);
+                        if (passcodeError) setPasscodeError('');
+                      }}
+                      className="h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-bold font-mono text-slate-700 cursor-pointer"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPasscodeInput('')}
+                    className="h-10 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg text-[11px] font-bold text-rose-700 cursor-pointer"
+                  >
+                    ล้าง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (passcodeInput.length < 10) setPasscodeInput((p) => p + '0');
+                      if (passcodeError) setPasscodeError('');
+                    }}
+                    className="h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-bold font-mono text-slate-700 cursor-pointer"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPasscodeInput((p) => p.slice(0, -1))}
+                    className="h-10 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 cursor-pointer"
+                  >
+                    ⌫ ลบ
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
