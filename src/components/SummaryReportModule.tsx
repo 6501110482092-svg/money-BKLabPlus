@@ -245,11 +245,39 @@ export default function SummaryReportModule({
   const [selectedBiz, setSelectedBiz] = useState<string>(activeBusinessId || 'all');
 
   // ตัวเลือกแสดง/ซ่อนรายละเอียดแต่ละตาราง (ตามที่ผู้ใช้ต้องการ: เพื่อจะได้ไม่ต้องแสดงตารางเปล่า)
+  const [showFinancialSummary, setShowFinancialSummary] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`bklabplus_summary_show_financial${bizSuffix}`);
+    return saved !== null ? saved === 'true' : true;
+  });
   const [showIncomeDetails, setShowIncomeDetails] = useState<boolean>(true);
   const [showExpenseDetails, setShowExpenseDetails] = useState<boolean>(true);
   const [showOutLabDetails, setShowOutLabDetails] = useState<boolean>(true);
 
-  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (บันทึกเป็นค่าเริ่มต้นถาวรอัตโนมัติแยกตามธุรกิจ)
+  // ตัวเลือกแสดง/ซ่อนหมายเหตุประกอบรายงาน (แยกเด็ดขาดจากส่วนลงนาม)
+  const [showNotesSection, setShowNotesSection] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`bklabplus_summary_show_notes${bizSuffix}`);
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [reportNote, setReportNote] = useState<string>(() => {
+    return localStorage.getItem(`bklabplus_summary_report_note${bizSuffix}`) || '';
+  });
+
+  const handleToggleFinancialSummary = (val: boolean) => {
+    setShowFinancialSummary(val);
+    localStorage.setItem(`bklabplus_summary_show_financial${bizSuffix}`, String(val));
+  };
+
+  const handleToggleNotesSection = (val: boolean) => {
+    setShowNotesSection(val);
+    localStorage.setItem(`bklabplus_summary_show_notes${bizSuffix}`, String(val));
+  };
+
+  const handleReportNoteChange = (val: string) => {
+    setReportNote(val);
+    localStorage.setItem(`bklabplus_summary_report_note${bizSuffix}`, val);
+  };
+
+  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (ช่องที่ 1: คนทำ / ผู้ตรวจสอบรายเดือนสรุป)
   const [signatureTitle, setSignatureTitle] = useState<string>(() => {
     return localStorage.getItem(`bklabplus_sig_summary_title${bizSuffix}`) || 'ผู้ตรวจสอบรายเดือนสรุป';
   });
@@ -262,6 +290,21 @@ export default function SummaryReportModule({
   const [signatureDate, setSignatureDate] = useState<string>(() => {
     return localStorage.getItem(`bklabplus_sig_summary_date${bizSuffix}`) || '';
   });
+
+  // ข้อความใต้ลายเซ็นสำหรับรายงานสรุป / รายเดือน (ช่องที่ 2: เจ้าของ / ผู้ตรวจสอบ / เจ้าของกิจการ)
+  const [signatureOwnerTitle, setSignatureOwnerTitle] = useState<string>(() => {
+    return localStorage.getItem(`bklabplus_sig_summary_owner_title${bizSuffix}`) || 'ผู้ตรวจสอบ / เจ้าของกิจการ';
+  });
+  const [signatureOwnerSubtitle, setSignatureOwnerSubtitle] = useState<string>(() => {
+    return localStorage.getItem(`bklabplus_sig_summary_owner_sub${bizSuffix}`) || 'ผู้อำนวยการคลินิก';
+  });
+  const [signatureOwnerName, setSignatureOwnerName] = useState<string>(() => {
+    return localStorage.getItem(`bklabplus_sig_summary_owner_name${bizSuffix}`) || '';
+  });
+  const [signatureOwnerDate, setSignatureOwnerDate] = useState<string>(() => {
+    return localStorage.getItem(`bklabplus_sig_summary_owner_date${bizSuffix}`) || '';
+  });
+
   const [showSignatureSection, setShowSignatureSection] = useState<boolean>(() => {
     const saved = localStorage.getItem(`bklabplus_sig_summary_show${bizSuffix}`);
     return saved !== null ? saved === 'true' : true;
@@ -271,10 +314,17 @@ export default function SummaryReportModule({
   useEffect(() => {
     const sfx = activeBusinessId && activeBusinessId !== 'all' ? `_${activeBusinessId}` : '';
     setCustomReportTitle(localStorage.getItem(`bklabplus_summary_custom_title${sfx}`) || 'ประจำเดือน กันยายน 2569');
+    setShowFinancialSummary(localStorage.getItem(`bklabplus_summary_show_financial${sfx}`) !== 'false');
+    setShowNotesSection(localStorage.getItem(`bklabplus_summary_show_notes${sfx}`) !== 'false');
+    setReportNote(localStorage.getItem(`bklabplus_summary_report_note${sfx}`) || '');
     setSignatureTitle(localStorage.getItem(`bklabplus_sig_summary_title${sfx}`) || 'ผู้ตรวจสอบรายเดือนสรุป');
     setSignatureSubtitle(localStorage.getItem(`bklabplus_sig_summary_sub${sfx}`) || 'คลินิก / แล็บวิเคราะห์');
     setSignatureSignerName(localStorage.getItem(`bklabplus_sig_summary_name${sfx}`) || '');
     setSignatureDate(localStorage.getItem(`bklabplus_sig_summary_date${sfx}`) || '');
+    setSignatureOwnerTitle(localStorage.getItem(`bklabplus_sig_summary_owner_title${sfx}`) || 'ผู้ตรวจสอบ / เจ้าของกิจการ');
+    setSignatureOwnerSubtitle(localStorage.getItem(`bklabplus_sig_summary_owner_sub${sfx}`) || 'ผู้อำนวยการคลินิก');
+    setSignatureOwnerName(localStorage.getItem(`bklabplus_sig_summary_owner_name${sfx}`) || '');
+    setSignatureOwnerDate(localStorage.getItem(`bklabplus_sig_summary_owner_date${sfx}`) || '');
     if (activeBusinessId) {
       setSelectedBiz(activeBusinessId);
     }
@@ -298,6 +348,26 @@ export default function SummaryReportModule({
   const handleSignatureDateChange = (val: string) => {
     setSignatureDate(val);
     localStorage.setItem(`bklabplus_sig_summary_date${bizSuffix}`, val);
+  };
+
+  const handleSignatureOwnerTitleChange = (val: string) => {
+    setSignatureOwnerTitle(val);
+    localStorage.setItem(`bklabplus_sig_summary_owner_title${bizSuffix}`, val);
+  };
+
+  const handleSignatureOwnerSubtitleChange = (val: string) => {
+    setSignatureOwnerSubtitle(val);
+    localStorage.setItem(`bklabplus_sig_summary_owner_sub${bizSuffix}`, val);
+  };
+
+  const handleSignatureOwnerNameChange = (val: string) => {
+    setSignatureOwnerName(val);
+    localStorage.setItem(`bklabplus_sig_summary_owner_name${bizSuffix}`, val);
+  };
+
+  const handleSignatureOwnerDateChange = (val: string) => {
+    setSignatureOwnerDate(val);
+    localStorage.setItem(`bklabplus_sig_summary_owner_date${bizSuffix}`, val);
   };
 
   const handleToggleSignatureSection = (val: boolean) => {
@@ -809,9 +879,11 @@ export default function SummaryReportModule({
   };
 
   const handleSelectAllTables = () => {
+    setShowFinancialSummary(true);
     setShowIncomeDetails(true);
     setShowExpenseDetails(true);
     setShowOutLabDetails(true);
+    setShowNotesSection(true);
     setShowSignatureSection(true);
   };
 
@@ -923,8 +995,26 @@ export default function SummaryReportModule({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="font-bold text-slate-700 flex items-center gap-1.5 mr-1">
               <Layers size={15} className="text-indigo-600" />
-              <span>เลือกตารางที่ต้องการแสดงในรายงาน:</span>
+              <span>เลือกส่วนที่ต้องการแสดงในรายงาน:</span>
             </span>
+
+            {/* Checkbox: สรุปภาพรวมการเงิน (ตรงสรุป) */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showFinancialSummary
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showFinancialSummary}
+                onChange={(e) => handleToggleFinancialSummary(e.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+              />
+              <span className="flex items-center gap-1">
+                <TrendingUp size={13} className={showFinancialSummary ? 'text-indigo-600' : 'text-gray-400'} />
+                <span>สรุปภาพรวมการเงิน</span>
+              </span>
+            </label>
 
             {/* Checkbox: รายละเอียดรายได้ */}
             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
@@ -1001,7 +1091,25 @@ export default function SummaryReportModule({
               </span>
             </label>
 
-            {/* Checkbox: สรุปภาพรวมและลายเซ็นท้ายรายงาน */}
+            {/* Checkbox: หมายเหตุประกอบรายงาน (แยกจากส่วนลงนาม) */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showNotesSection
+                ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showNotesSection}
+                onChange={(e) => handleToggleNotesSection(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+              />
+              <span className="flex items-center gap-1">
+                <Edit3 size={13} className={showNotesSection ? 'text-amber-600' : 'text-gray-400'} />
+                <span>หมายเหตุ</span>
+              </span>
+            </label>
+
+            {/* Checkbox: ส่วนลงนาม / ลายเซ็น (แยกจากหมายเหตุ) */}
             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
               showSignatureSection
                 ? 'bg-blue-50 border-blue-300 text-blue-800 font-bold shadow-2xs'
@@ -1011,11 +1119,11 @@ export default function SummaryReportModule({
                 type="checkbox"
                 checked={showSignatureSection}
                 onChange={(e) => handleToggleSignatureSection(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
               />
               <span className="flex items-center gap-1">
                 <CheckCircle size={13} className={showSignatureSection ? 'text-blue-600' : 'text-gray-400'} />
-                <span>สรุปหมายเหตุ & ลายเซ็น</span>
+                <span>ส่วนลงนาม</span>
               </span>
             </label>
           </div>
@@ -1154,62 +1262,95 @@ export default function SummaryReportModule({
 
         </div>
 
-        {/* ยอดไฮไลต์สะสม 4 มิติทางการเงิน */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-emerald-100/30 border border-emerald-150">
-            <div className="flex items-center justify-between text-xs font-bold text-emerald-800 mb-1">
-              <span>รายรับสะสมรวม</span>
-              <TrendingUp size={16} className="text-emerald-600" />
-            </div>
-            <div className="text-2xl font-black text-emerald-700">
-              ฿{formatNumber(totalRangeIncome)}
-            </div>
-            <div className="text-[11px] text-emerald-700/80 mt-1 flex items-center justify-between font-medium">
-              <span>เงินสด: ฿{formatNumber(totalRangeIncomeCash)}</span>
-              <span>โอน: ฿{formatNumber(totalRangeIncomeTransfer)}</span>
-            </div>
-          </div>
+        {/* ============================================================== */}
+        {/* [0] ส่วนสรุปภาพรวมการเงิน (Financial Summary Cards) */}
+        {/* ============================================================== */}
+        {showFinancialSummary && (
+          <div className="space-y-3 pt-1" id="financial-summary-cards-section">
+            <div className="flex flex-wrap justify-between items-center pb-2 border-b border-gray-150 gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                  <TrendingUp size={14} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm md:text-base text-slate-900">
+                    สรุปภาพรวมการเงิน (Financial Summary)
+                  </h3>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    ยอดรายรับสะสม รายจ่ายทั่วไป ค่าส่งแล็บนอก และกำไรสุทธิรวมในช่วงเวลา
+                  </p>
+                </div>
+              </div>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/70 to-rose-100/30 border border-rose-150">
-            <div className="flex items-center justify-between text-xs font-bold text-rose-800 mb-1">
-              <span>รายจ่ายทั่วไปสะสม</span>
-              <Receipt size={16} className="text-rose-500" />
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-indigo-700 cursor-pointer print:hidden select-none bg-slate-50 hover:bg-indigo-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showFinancialSummary}
+                  onChange={(e) => handleToggleFinancialSummary(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                />
+                <span className="text-[11px] font-semibold">แสดงในรายงาน</span>
+              </label>
             </div>
-            <div className="text-2xl font-black text-rose-600">
-              ฿{formatNumber(totalRangeGeneralExpense)}
-            </div>
-            <div className="text-[11px] text-rose-700/80 mt-1 flex items-center justify-between font-medium">
-              <span>เงินสด: ฿{formatNumber(totalRangeGeneralExpenseCash)}</span>
-              <span>โอน: ฿{formatNumber(totalRangeGeneralExpenseTransfer)}</span>
-            </div>
-          </div>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-amber-100/30 border border-amber-150">
-            <div className="flex items-center justify-between text-xs font-bold text-amber-800 mb-1">
-              <span>รายจ่าย Out-Lab สะสม</span>
-              <FlaskConical size={16} className="text-amber-500" />
-            </div>
-            <div className="text-2xl font-black text-amber-600">
-              ฿{formatNumber(totalRangeOutLab)}
-            </div>
-            <span className="text-[11px] text-amber-700/80 block mt-1 font-medium">
-              ส่งแล็บนอก {totalOutLabCount} ครั้ง ({sortedOutLabList.length} รายการตรวจ)
-            </span>
-          </div>
+            {/* ยอดไฮไลต์สะสม 4 มิติทางการเงิน */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-emerald-100/30 border border-emerald-150">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-800 mb-1">
+                  <span>รายรับสะสมรวม</span>
+                  <TrendingUp size={16} className="text-emerald-600" />
+                </div>
+                <div className="text-2xl font-black text-emerald-700">
+                  ฿{formatNumber(totalRangeIncome)}
+                </div>
+                <div className="text-[11px] text-emerald-700/80 mt-1 flex items-center justify-between font-medium">
+                  <span>เงินสด: ฿{formatNumber(totalRangeIncomeCash)}</span>
+                  <span>โอน: ฿{formatNumber(totalRangeIncomeTransfer)}</span>
+                </div>
+              </div>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xs">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
-              <span>รายได้สุทธิสะสม (Net Profit)</span>
-              <Wallet size={16} className="text-emerald-400" />
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/70 to-rose-100/30 border border-rose-150">
+                <div className="flex items-center justify-between text-xs font-bold text-rose-800 mb-1">
+                  <span>รายจ่ายทั่วไปสะสม</span>
+                  <Receipt size={16} className="text-rose-500" />
+                </div>
+                <div className="text-2xl font-black text-rose-600">
+                  ฿{formatNumber(totalRangeGeneralExpense)}
+                </div>
+                <div className="text-[11px] text-rose-700/80 mt-1 flex items-center justify-between font-medium">
+                  <span>เงินสด: ฿{formatNumber(totalRangeGeneralExpenseCash)}</span>
+                  <span>โอน: ฿{formatNumber(totalRangeGeneralExpenseTransfer)}</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 to-amber-100/30 border border-amber-150">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-800 mb-1">
+                  <span>รายจ่าย Out-Lab สะสม</span>
+                  <FlaskConical size={16} className="text-amber-500" />
+                </div>
+                <div className="text-2xl font-black text-amber-600">
+                  ฿{formatNumber(totalRangeOutLab)}
+                </div>
+                <span className="text-[11px] text-amber-700/80 block mt-1 font-medium">
+                  ส่งแล็บนอก {totalOutLabCount} ครั้ง ({sortedOutLabList.length} รายการตรวจ)
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xs">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
+                  <span>รายได้สุทธิสะสม (Net Profit)</span>
+                  <Wallet size={16} className="text-emerald-400" />
+                </div>
+                <div className={`text-2xl font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  ฿{formatNumber(netProfit)}
+                </div>
+                <span className="text-[11px] text-slate-400 block mt-1 font-medium">
+                  รายรับหักลบรายจ่ายทั้งหมด (฿{formatNumber(totalRangeExpense)})
+                </span>
+              </div>
             </div>
-            <div className={`text-2xl font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              ฿{formatNumber(netProfit)}
-            </div>
-            <span className="text-[11px] text-slate-400 block mt-1 font-medium">
-              รายรับหักลบรายจ่ายทั้งหมด (฿{formatNumber(totalRangeExpense)})
-            </span>
           </div>
-        </div>
+        )}
 
         {/* ============================================================== */}
         {/* [1] ส่วนตารางรายละเอียดรายได้ (Income Details Table) */}
@@ -1527,15 +1668,15 @@ export default function SummaryReportModule({
                     )}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-emerald-50/30 text-[11px] text-gray-700 border-t border-rose-150">
+                    <tr className="bg-rose-50/30 text-[11px] text-gray-700 border-t border-rose-150">
                       <td colSpan={4} className="py-1.5 px-4 text-right font-medium">รวมจ่ายเงินสด (Cash Expense):</td>
-                      <td className="py-1.5 px-4 text-right text-emerald-800 font-mono font-bold">
+                      <td className="py-1.5 px-4 text-right text-rose-700 font-mono font-bold">
                         ฿{formatNumber(totalRangeGeneralExpenseCash)}
                       </td>
                     </tr>
-                    <tr className="bg-blue-50/30 text-[11px] text-gray-700 border-t border-rose-100">
+                    <tr className="bg-orange-50/20 text-[11px] text-gray-700 border-t border-rose-100">
                       <td colSpan={4} className="py-1.5 px-4 text-right font-medium">รวมจ่ายเงินโอน (Transfer Expense):</td>
-                      <td className="py-1.5 px-4 text-right text-blue-800 font-mono font-bold">
+                      <td className="py-1.5 px-4 text-right text-orange-700 font-mono font-bold">
                         ฿{formatNumber(totalRangeGeneralExpenseTransfer)}
                       </td>
                     </tr>
@@ -1580,10 +1721,10 @@ export default function SummaryReportModule({
                               {item.count}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 text-right font-mono text-emerald-700">
+                          <td className="py-2.5 px-4 text-right font-mono text-rose-700">
                             ฿{formatNumber(item.cashAmount || 0)}
                           </td>
-                          <td className="py-2.5 px-4 text-right font-mono text-blue-700">
+                          <td className="py-2.5 px-4 text-right font-mono text-orange-700">
                             ฿{formatNumber(item.transferAmount || 0)}
                           </td>
                           <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-700">
@@ -1599,10 +1740,10 @@ export default function SummaryReportModule({
                       <td className="py-3 px-3 text-center font-bold text-slate-700">
                         {allExpenseItems.length} ครั้ง
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-emerald-700">
+                      <td className="py-3 px-4 text-right font-mono text-rose-700">
                         ฿{formatNumber(totalRangeGeneralExpenseCash)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-blue-700">
+                      <td className="py-3 px-4 text-right font-mono text-orange-700">
                         ฿{formatNumber(totalRangeGeneralExpenseTransfer)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-rose-700 text-sm">
@@ -1809,107 +1950,216 @@ export default function SummaryReportModule({
           </div>
         )}
 
-        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print & ตรวจสอบ) */}
-        {showSignatureSection && (
-          <div className="grid grid-cols-2 print:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600 break-inside-avoid print:break-inside-avoid">
-            {/* สรุปข้อมูลภาพรวมของช่วงเวลา */}
-            <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-gray-150">
-              <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80">
-                <span className="font-extrabold text-slate-800 text-xs">
-                  สรุปผลการเงินช่วงเวลา ({customReportTitle})
-                </span>
-                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded-md border border-gray-200 font-semibold">
-                  {datesInRange.length} วันที่มีการลงบัญชี
-                </span>
+        {/* ส่วนสรุปข้อมูลภาพรวมของช่วงเวลา (ตรงสรุป: สามารถติ๊กเลือกได้ว่าจะใส่ในรายงานหรือไม่) */}
+        {showFinancialSummary && (
+          <div className="bg-slate-50 p-4 rounded-2xl border border-gray-200/90 shadow-2xs space-y-2.5 break-inside-avoid print:break-inside-avoid" id="summary-financial-period-box">
+            <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80">
+              <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5">
+                <Sparkles size={14} className="text-amber-500" />
+                <span>สรุปผลการเงินช่วงเวลา ({customReportTitle})</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded-md border border-gray-200 font-semibold">
+                {datesInRange.length} วันที่มีการลงบัญชี
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="flex justify-between items-center text-xs bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
+                <span className="text-slate-600 font-medium">ยอดรายรับสะสมรวม:</span>
+                <span className="font-mono font-bold text-emerald-700">฿{formatNumber(totalRangeIncome)}</span>
               </div>
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">ยอดรายรับสะสมรวม:</span>
-                  <span className="font-mono font-bold text-emerald-700">฿{formatNumber(totalRangeIncome)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">ยอดรายจ่ายรวม (ทั่วไป + Out-Lab):</span>
-                  <span className="font-mono font-bold text-rose-600">฿{formatNumber(totalRangeExpense)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs pt-1.5 border-t border-dashed border-gray-200">
-                  <span className="font-extrabold text-slate-800">ผลกำไรสุทธิรวม (Net Profit):</span>
-                  <span className={`font-mono font-black text-sm ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    ฿{formatNumber(netProfit)}
-                  </span>
-                </div>
+              <div className="flex justify-between items-center text-xs bg-white p-3 rounded-xl border border-rose-100 shadow-2xs">
+                <span className="text-slate-600 font-medium">ยอดรายจ่ายรวมทั้งหมด:</span>
+                <span className="font-mono font-bold text-rose-600">฿{formatNumber(totalRangeExpense)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                <span className="font-extrabold text-slate-800">ผลกำไรสุทธิรวม:</span>
+                <span className={`font-mono font-black text-sm ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  ฿{formatNumber(netProfit)}
+                </span>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* ส่วนลายเซ็นและชื่อตำแหน่งใต้ลายเซ็น (พิมพ์เองและจำค่าเริ่มต้นอัตโนมัติ) */}
-            <div className="flex flex-col justify-end items-end h-full">
-              <div className="w-64 max-w-full text-center space-y-2">
-                <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
-                {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
-                <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
-                  <span className="font-bold select-none text-slate-500">(</span>
-                  <input
-                    type="text"
-                    value={signatureSignerName}
-                    onChange={(e) => handleSignatureSignerNameChange(e.target.value)}
-                    placeholder=".........................................."
-                    className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
-                  />
-                  <span className="font-bold select-none text-slate-500">)</span>
-                </div>
-                {/* ตำแหน่งและสังกัด */}
-                <div className="space-y-1 group">
-                  <input
-                    type="text"
-                    value={signatureTitle}
-                    onChange={(e) => handleSignatureTitleChange(e.target.value)}
-                    placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบรายเดือนสรุป..."
-                    className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
-                  />
-                  <input
-                    type="text"
-                    value={signatureSubtitle}
-                    onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
-                    placeholder="พิมพ์สังกัด/หน่วยงาน..."
-                    className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
-                  />
-                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
-                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
-                  </p>
-                </div>
-                {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
-                  <span className="font-medium text-slate-600">วันที่:</span>
-                  <input
-                    type="text"
-                    value={signatureDate}
-                    onChange={(e) => handleSignatureDateChange(e.target.value)}
-                    placeholder="....... / ....... / ............"
-                    className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleSignatureDateChange(getTodayThaiFormatted())}
-                    className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
-                    title="กดเพื่อใส่วันที่ปัจจุบันทันที"
-                  >
-                    📅 วันนี้
-                  </button>
-                  {signatureDate && (
+        {/* ส่วนหมายเหตุประกอบรายงาน (Notes / Remarks) แยกเด็ดขาดจากส่วนลงนาม */}
+        {showNotesSection && (
+          <div className="bg-slate-50 p-4 rounded-2xl border border-gray-200/90 shadow-2xs space-y-2 break-inside-avoid print:break-inside-avoid" id="summary-notes-section">
+            <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80">
+              <span className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5">
+                <Edit3 size={14} className="text-amber-600" />
+                <span>หมายเหตุประกอบรายงาน (Notes / Remarks)</span>
+              </span>
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-amber-700 cursor-pointer print:hidden select-none bg-white px-2.5 py-1 rounded-lg border border-slate-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showNotesSection}
+                  onChange={(e) => handleToggleNotesSection(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                />
+                <span className="text-[11px] font-semibold">แสดงในรายงาน</span>
+              </label>
+            </div>
+            <div className="pt-1">
+              <textarea
+                value={reportNote}
+                onChange={(e) => handleReportNoteChange(e.target.value)}
+                placeholder="พิมพ์บันทึกหมายเหตุประกอบรายงาน เช่น ข้อสังเกตทางการเงิน, คำชี้แจง, การตรวจสอบยอดเงิน หรือรายละเอียดเพิ่มเติม..."
+                rows={2}
+                className="w-full text-xs text-slate-800 bg-white hover:bg-slate-50 focus:bg-white border border-gray-200 focus:border-amber-400 rounded-xl p-3 outline-none transition-all resize-y placeholder:text-gray-400 print:border-0 print:p-0 print:bg-transparent"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ส่วนลงนาม / ลายเซ็น (2 จุด: คนทำ และ เจ้าของกิจการ สัดส่วนอยู่แถวเดียวกัน เหมือนประมวลผลกำไร) */}
+        {showSignatureSection && (
+          <div className="pt-6 mt-6 border-t border-slate-200 text-xs break-inside-avoid print:break-inside-avoid" id="summary-signatures-section">
+            <div className="grid grid-cols-2 print:grid-cols-2 gap-6 print:gap-4">
+              
+              {/* ฝั่งซ้าย: ผู้ตรวจสอบรายเดือนสรุป / คนทำ */}
+              <div className="flex flex-col items-center justify-end text-center">
+                <div className="w-64 max-w-full space-y-2">
+                  <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+                  {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+                  <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                    <span className="font-bold select-none text-slate-500">(</span>
+                    <input
+                      type="text"
+                      value={signatureSignerName}
+                      onChange={(e) => handleSignatureSignerNameChange(e.target.value)}
+                      placeholder=".........................................."
+                      className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                    />
+                    <span className="font-bold select-none text-slate-500">)</span>
+                  </div>
+                  {/* ตำแหน่งและสังกัด */}
+                  <div className="space-y-1 group">
+                    <input
+                      type="text"
+                      value={signatureTitle}
+                      onChange={(e) => handleSignatureTitleChange(e.target.value)}
+                      placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบรายเดือนสรุป..."
+                      className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                    />
+                    <input
+                      type="text"
+                      value={signatureSubtitle}
+                      onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
+                      placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                      className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                    />
+                    <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                      ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                    </p>
+                  </div>
+                  {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                    <span className="font-medium text-slate-600">วันที่:</span>
+                    <input
+                      type="text"
+                      value={signatureDate}
+                      onChange={(e) => handleSignatureDateChange(e.target.value)}
+                      placeholder="....... / ....... / ............"
+                      className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                    />
                     <button
                       type="button"
-                      onClick={() => handleSignatureDateChange('')}
-                      className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
-                      title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                      onClick={() => handleSignatureDateChange(getTodayThaiFormatted())}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                      title="กดเพื่อใส่วันที่ปัจจุบันทันที"
                     >
-                      ✕
+                      📅 วันนี้
                     </button>
-                  )}
+                    {signatureDate && (
+                      <button
+                        type="button"
+                        onClick={() => handleSignatureDateChange('')}
+                        className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                        title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* ฝั่งขวา: ผู้ตรวจสอบ / เจ้าของกิจการ */}
+              <div className="flex flex-col items-center justify-end text-center">
+                <div className="w-64 max-w-full space-y-2">
+                  <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+                  {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+                  <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                    <span className="font-bold select-none text-slate-500">(</span>
+                    <input
+                      type="text"
+                      value={signatureOwnerName}
+                      onChange={(e) => handleSignatureOwnerNameChange(e.target.value)}
+                      placeholder=".........................................."
+                      className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                    />
+                    <span className="font-bold select-none text-slate-500">)</span>
+                  </div>
+                  {/* ตำแหน่งและสังกัด */}
+                  <div className="space-y-1 group">
+                    <input
+                      type="text"
+                      value={signatureOwnerTitle}
+                      onChange={(e) => handleSignatureOwnerTitleChange(e.target.value)}
+                      placeholder="พิมพ์ตำแหน่ง เช่น ผู้ตรวจสอบ / เจ้าของกิจการ..."
+                      className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                    />
+                    <input
+                      type="text"
+                      value={signatureOwnerSubtitle}
+                      onChange={(e) => handleSignatureOwnerSubtitleChange(e.target.value)}
+                      placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                      className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                    />
+                    <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                      ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
+                    </p>
+                  </div>
+                  {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                    <span className="font-medium text-slate-600">วันที่:</span>
+                    <input
+                      type="text"
+                      value={signatureOwnerDate}
+                      onChange={(e) => handleSignatureOwnerDateChange(e.target.value)}
+                      placeholder="....... / ....... / ............"
+                      className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                      title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSignatureOwnerDateChange(getTodayThaiFormatted())}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                      title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                    >
+                      📅 วันนี้
+                    </button>
+                    {signatureOwnerDate && (
+                      <button
+                        type="button"
+                        onClick={() => handleSignatureOwnerDateChange('')}
+                        className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                        title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}

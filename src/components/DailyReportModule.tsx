@@ -21,6 +21,7 @@ import {
   Receipt,
   FlaskConical,
   Layers,
+  Edit3,
 } from 'lucide-react';
 
 interface DailyReportModuleProps {
@@ -110,7 +111,8 @@ export default function DailyReportModule({
   const [showIncomeTable, setShowIncomeTable] = React.useState<boolean>(true);
   const [showExpenseTable, setShowExpenseTable] = React.useState<boolean>(true);
   const [showOutLabTable, setShowOutLabTable] = React.useState<boolean>(true);
-  const [showCashCheckSummary, setShowCashCheckSummary] = React.useState<boolean>(true);
+  const [showNoteSummary, setShowNoteSummary] = React.useState<boolean>(true);
+  const [showSignatureSection, setShowSignatureSection] = React.useState<boolean>(true);
 
   const incomeItems = record?.incomeItems || [];
   const expenseItems = record?.expenseItems || [];
@@ -121,7 +123,8 @@ export default function DailyReportModule({
     setShowIncomeTable(true);
     setShowExpenseTable(true);
     setShowOutLabTable(true);
-    setShowCashCheckSummary(true);
+    setShowNoteSummary(true);
+    setShowSignatureSection(true);
   };
 
   const handleHideEmptyTables = () => {
@@ -244,7 +247,7 @@ export default function DailyReportModule({
       ...(showIncomeTable ? incomeRows : []),
       ...(showExpenseTable ? expenseRows : []),
       ...(showOutLabTable ? outLabRows : []),
-      ...(showCashCheckSummary ? summaryRows : []),
+      ...(showNoteSummary ? summaryRows : []),
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(allData);
@@ -380,21 +383,39 @@ export default function DailyReportModule({
               </span>
             </label>
 
-            {/* Checkbox: หมายเหตุ & ส่วนลงนาม */}
+            {/* Checkbox: หมายเหตุการตรวจสอบ */}
             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
-              showCashCheckSummary
+              showNoteSummary
+                ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold shadow-2xs'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+            }`}>
+              <input
+                type="checkbox"
+                checked={showNoteSummary}
+                onChange={(e) => setShowNoteSummary(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+              />
+              <span className="flex items-center gap-1">
+                <Edit3 size={13} className={showNoteSummary ? 'text-amber-600' : 'text-gray-400'} />
+                <span>หมายเหตุ</span>
+              </span>
+            </label>
+
+            {/* Checkbox: ส่วนลงนาม */}
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer select-none transition-all ${
+              showSignatureSection
                 ? 'bg-indigo-50 border-indigo-300 text-indigo-800 font-bold shadow-2xs'
                 : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
             }`}>
               <input
                 type="checkbox"
-                checked={showCashCheckSummary}
-                onChange={(e) => setShowCashCheckSummary(e.target.checked)}
+                checked={showSignatureSection}
+                onChange={(e) => setShowSignatureSection(e.target.checked)}
                 className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
               />
               <span className="flex items-center gap-1">
-                <CheckCircle size={13} className={showCashCheckSummary ? 'text-indigo-600' : 'text-gray-400'} />
-                <span>หมายเหตุ & ส่วนลงนาม</span>
+                <CheckCircle size={13} className={showSignatureSection ? 'text-indigo-600' : 'text-gray-400'} />
+                <span>ส่วนลงนาม</span>
               </span>
             </label>
           </div>
@@ -798,99 +819,100 @@ export default function DailyReportModule({
           </div>
         )}
 
-        {/* ส่วนลงชื่อตรวจสอบและหมายเหตุ (สำคัญมาก สำหรับ Print) */}
-        {showCashCheckSummary && (
-          <div className="grid grid-cols-2 print:grid-cols-2 gap-6 pt-6 border-t border-slate-100 text-xs text-gray-600 break-inside-avoid print:break-inside-avoid">
-            <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-gray-100">
-              <span className="font-bold text-slate-800 block text-xs">สรุปหมายเหตุการตรวจสอบการเงิน</span>
-              <div className="space-y-1">
-                <p>
-                  <strong>ยอดเงินสดทับจริงที่นับได้:</strong> ฿{formatNumber(countedCash)}
-                </p>
-                <p>
-                  <strong>ยอดลอจิกความคลาดเคลื่อน:</strong>{' '}
-                  {isCorrect ? (
-                    <span className="text-emerald-700 font-semibold">ถูกต้องตามระบบบัญชี</span>
-                  ) : (
-                    <span className="text-rose-600 font-semibold font-mono">
-                      {diff < 0 ? `ขาด ${formatNumber(Math.abs(diff))} บ.` : `เกิน ${formatNumber(diff)} บ.`}
-                    </span>
-                  )}
-                </p>
-                <p className="mt-1">
-                  <strong>บันทึกกำกับหมายเหตุ:</strong> {record.cashCheck?.note || '-'}
+        {/* ส่วนหมายเหตุการตรวจสอบ (แยกจากส่วนลงนาม) */}
+        {showNoteSummary && (
+          <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-gray-100 break-inside-avoid print:break-inside-avoid text-xs text-gray-600 mb-6">
+            <span className="font-bold text-slate-800 block text-xs">สรุปหมายเหตุการตรวจสอบการเงิน</span>
+            <div className="space-y-1">
+              <p>
+                <strong>ยอดเงินสดทับจริงที่นับได้:</strong> ฿{formatNumber(countedCash)}
+              </p>
+              <p>
+                <strong>ยอดลอจิกความคลาดเคลื่อน:</strong>{' '}
+                {isCorrect ? (
+                  <span className="text-emerald-700 font-semibold">ถูกต้องตามระบบบัญชี</span>
+                ) : (
+                  <span className="text-rose-600 font-semibold font-mono">
+                    {diff < 0 ? `ขาด ${formatNumber(Math.abs(diff))} บ.` : `เกิน ${formatNumber(diff)} บ.`}
+                  </span>
+                )}
+              </p>
+              <p className="mt-1">
+                <strong>บันทึกกำกับหมายเหตุ:</strong> {record.cashCheck?.note || '-'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ส่วนลงชื่อตรวจสอบ (แยกจากหมายเหตุ) */}
+        {showSignatureSection && (
+          <div className="pt-6 border-t border-slate-100 text-xs text-gray-600 break-inside-avoid print:break-inside-avoid flex justify-end">
+            <div className="w-64 max-w-full text-center space-y-2">
+              <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
+              {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
+              <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
+                <span className="font-bold select-none text-slate-500">(</span>
+                <input
+                  type="text"
+                  value={signatureSignerName}
+                  onChange={(e) => handleSignatureSignerNameChange(e.target.value)}
+                  placeholder=".........................................."
+                  className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
+                  title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
+                />
+                <span className="font-bold select-none text-slate-500">)</span>
+              </div>
+              {/* ตำแหน่งและสังกัด */}
+              <div className="space-y-1 group">
+                <input
+                  type="text"
+                  value={signatureTitle}
+                  onChange={(e) => handleSignatureTitleChange(e.target.value)}
+                  placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบประจำวัน..."
+                  className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                  title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                />
+                <input
+                  type="text"
+                  value={signatureSubtitle}
+                  onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
+                  placeholder="พิมพ์สังกัด/หน่วยงาน..."
+                  className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
+                  title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
+                />
+                <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                  ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
                 </p>
               </div>
-            </div>
-
-            <div className="flex flex-col justify-end items-end h-full">
-              <div className="w-64 max-w-full text-center space-y-2">
-                <div className="border-b border-dashed border-gray-400 h-9 w-full"></div>
-                {/* ช่องพิมพ์ชื่อ-นามสกุลในวงเล็บ */}
-                <div className="flex items-center justify-center gap-0.5 text-slate-700 text-xs font-mono w-full px-1">
-                  <span className="font-bold select-none text-slate-500">(</span>
-                  <input
-                    type="text"
-                    value={signatureSignerName}
-                    onChange={(e) => handleSignatureSignerNameChange(e.target.value)}
-                    placeholder=".........................................."
-                    className="flex-1 max-w-[200px] text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-transparent hover:border-slate-300 focus:border-blue-400 outline-none text-xs font-semibold text-slate-800 placeholder:text-slate-300 transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="พิมพ์ชื่อ-นามสกุลในวงเล็บ หรือเว้นว่างไว้เพื่อรอเซ็นชื่อ"
-                  />
-                  <span className="font-bold select-none text-slate-500">)</span>
-                </div>
-                {/* ตำแหน่งและสังกัด */}
-                <div className="space-y-1 group">
-                  <input
-                    type="text"
-                    value={signatureTitle}
-                    onChange={(e) => handleSignatureTitleChange(e.target.value)}
-                    placeholder="พิมพ์ตำแหน่งใต้ลายเซ็น เช่น ผู้ตรวจสอบประจำวัน..."
-                    className="w-full text-center font-bold text-slate-800 text-xs bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-1 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="คลิกเพื่อแก้ไขข้อความใต้ลายเซ็น (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
-                  />
-                  <input
-                    type="text"
-                    value={signatureSubtitle}
-                    onChange={(e) => handleSignatureSubtitleChange(e.target.value)}
-                    placeholder="พิมพ์สังกัด/หน่วยงาน..."
-                    className="w-full text-center text-[11px] text-slate-500 bg-transparent hover:bg-slate-100/80 focus:bg-white border border-transparent hover:border-slate-300 focus:border-blue-400 rounded-md py-0.5 px-1.5 outline-none transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="คลิกเพื่อแก้ไขสังกัด/หน่วยงาน (จำค่าเริ่มต้นไว้ให้อัตโนมัติ)"
-                  />
-                  <p className="text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
-                    ✏️ คลิกพิมพ์เปลี่ยนข้อความได้ (จำค่าเริ่มต้นอัตโนมัติ)
-                  </p>
-                </div>
-                {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
-                  <span className="font-medium text-slate-600">วันที่:</span>
-                  <input
-                    type="text"
-                    value={signatureDate}
-                    onChange={(e) => handleSignatureDateChange(e.target.value)}
-                    placeholder="....... / ....... / ............"
-                    className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
-                    title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
-                  />
+              {/* วันที่ใต้ชื่อ สามารถพิมพ์ตัวเลขเองได้ หรือกดปุ่ม 'วันนี้' */}
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                <span className="font-medium text-slate-600">วันที่:</span>
+                <input
+                  type="text"
+                  value={signatureDate}
+                  onChange={(e) => handleSignatureDateChange(e.target.value)}
+                  placeholder="....... / ....... / ............"
+                  className="w-24 text-center bg-transparent hover:bg-slate-100/80 focus:bg-white border-b border-dashed border-gray-300 hover:border-slate-400 focus:border-blue-400 outline-none text-[11px] text-slate-700 transition-all print:border-0 print:bg-transparent print:p-0"
+                  title="พิมพ์วันที่หรือตัวเลขกำกับ (หรือกดปุ่ม 'วันนี้')"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSignatureDateChange(getTodayThaiFormatted())}
+                  className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
+                  title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                >
+                  📅 วันนี้
+                </button>
+                {signatureDate && (
                   <button
                     type="button"
-                    onClick={() => handleSignatureDateChange(getTodayThaiFormatted())}
-                    className="px-1.5 py-0.5 text-[9px] font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-all cursor-pointer shadow-2xs print:hidden active:scale-95"
-                    title="กดเพื่อใส่วันที่ปัจจุบันทันที"
+                    onClick={() => handleSignatureDateChange('')}
+                    className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
+                    title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
                   >
-                    📅 วันนี้
+                    ✕
                   </button>
-                  {signatureDate && (
-                    <button
-                      type="button"
-                      onClick={() => handleSignatureDateChange('')}
-                      className="text-[10px] text-slate-400 hover:text-rose-600 px-1 py-0.5 print:hidden cursor-pointer"
-                      title="ล้างวันที่เพื่อเว้นว่างไว้เขียนมือ"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           </div>

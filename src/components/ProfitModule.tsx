@@ -782,7 +782,7 @@ export default function ProfitModule({
                 />
                 <span className="font-bold text-slate-700 flex items-center gap-1.5">
                   <CheckCircle size={14} className="text-emerald-600" />
-                  <span>แสดงส่วนลงนาม & หมายเหตุในรายงาน</span>
+                  <span>แสดงส่วนลงนามในรายงาน</span>
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
                   showProfitSignature ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
@@ -908,7 +908,7 @@ export default function ProfitModule({
                   />
                   <span className="font-bold text-slate-700 flex items-center gap-1.5">
                     <CheckCircle size={14} className="text-emerald-600" />
-                    <span>แสดงส่วนลงนาม & หมายเหตุ</span>
+                    <span>แสดงส่วนลงนาม</span>
                   </span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
                     showProfitSignature ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
@@ -1006,36 +1006,36 @@ export default function ProfitModule({
                 </div>
 
                 {/* กล่องรายจ่าย */}
-                <div className="p-4 bg-white rounded-xl border border-gray-200/90 shadow-2xs flex flex-col justify-between space-y-3">
+                <div className="p-4 bg-white rounded-xl border border-rose-100 shadow-2xs flex flex-col justify-between space-y-3">
                   <div>
-                    <span className="text-xs text-gray-400 font-bold block mb-1">
+                    <span className="text-xs text-rose-500 font-bold block mb-1">
                       รายจ่ายรวมทั้งหมด (ทั่วไป + Out-Lab)
                     </span>
                     <span className="text-2xl font-black text-rose-600">
                       ฿ {formatNumber(activeFinancials.totalExpense)}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 flex flex-col gap-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        <span>จ่ายเงินสด (หักจากเกะ):</span>
-                      </span>
-                      <span className="font-bold font-mono text-emerald-800">฿ {formatNumber(activeFinancials.cashExpense)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700 font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                        <span>จ่ายเงินโอน (ตัดบัญชี):</span>
-                      </span>
-                      <span className="font-bold font-mono text-blue-800">฿ {formatNumber(activeFinancials.transferExpense)}</span>
-                    </div>
+                  <div className="text-xs text-slate-500 pt-2 border-t border-rose-100/70 flex flex-col gap-1.5">
                     <div className="flex justify-between">
                       <span className="text-rose-700 font-semibold flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        <span>จ่ายเงินสด (หักจากเกะ):</span>
+                      </span>
+                      <span className="font-bold font-mono text-rose-700">฿ {formatNumber(activeFinancials.cashExpense)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-orange-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                        <span>จ่ายเงินโอน (ตัดบัญชี):</span>
+                      </span>
+                      <span className="font-bold font-mono text-orange-800">฿ {formatNumber(activeFinancials.transferExpense)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                         <span>Out-Lab (แล็บนอก):</span>
                       </span>
-                      <span className="font-bold font-mono text-rose-800">฿ {formatNumber(activeFinancials.outLabExpense)}</span>
+                      <span className="font-bold font-mono text-amber-800">฿ {formatNumber(activeFinancials.outLabExpense)}</span>
                     </div>
                   </div>
                 </div>
@@ -1363,10 +1363,10 @@ export default function ProfitModule({
                       <td className="p-3 font-mono text-right text-white">
                         {formatNumber(rangeData.totalIncome)}
                       </td>
-                      <td className="p-3 font-mono text-right text-emerald-300">
+                      <td className="p-3 font-mono text-right text-rose-300">
                         {formatNumber(rangeData.totalCashExpense)}
                       </td>
-                      <td className="p-3 font-mono text-right text-blue-300">
+                      <td className="p-3 font-mono text-right text-orange-300">
                         {formatNumber(rangeData.totalTransferExpense)}
                       </td>
                       <td className="p-3 font-mono text-right text-rose-400">
